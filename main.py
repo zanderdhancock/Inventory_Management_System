@@ -2,6 +2,16 @@ import streamlit as st
 import hmac
 from pathlib import Path
 from dotenv import dotenv_values
+from styles import apply_styles
+
+st.set_page_config(
+    page_title="Oceanus Inventory",
+    page_icon="🌊",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+apply_styles()
 
 # --------------------------------------------------
 # APP ACCESS
@@ -19,9 +29,23 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
+    st.html(
+        """
+        <div class="access-shell">
+            <div class="access-kicker">
+                OCEANUS • UNDERWATER ROBOTICS
+            </div>
 
-    st.title("🌊 Oceanus Inventory")
-    st.caption("Oceanus Underwater Robotics Team")
+            <div class="access-title">
+                Inventory System
+            </div>
+
+            <div class="access-subtitle">
+                Authorized team access
+            </div>
+        </div>
+        """
+    )
 
     with st.form("access_form"):
         entered_code = st.text_input(
@@ -40,7 +64,6 @@ if not st.session_state.authenticated:
         ):
             st.session_state.authenticated = True
             st.rerun()
-
         else:
             st.error("Incorrect access code.")
 
@@ -79,13 +102,24 @@ from components import (
 # PAGE SETUP
 # --------------------------------------------------
 
-st.set_page_config(
-    page_title="Oceanus Inventory",
-    page_icon="🌊",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
 
+st.html(
+    """
+    <div class="oceanus-hero">
+        <div class="oceanus-kicker">
+            OCEANUS • UNDERWATER ROBOTICS
+        </div>
+
+        <div class="oceanus-title">
+            Inventory System
+        </div>
+
+        <div class="oceanus-subtitle">
+            Equipment, materials, and inventory operations
+        </div>
+    </div>
+    """
+)
 
 # --------------------------------------------------
 # SESSION STATE
@@ -96,23 +130,15 @@ if "success_message" not in st.session_state:
 
 
 # --------------------------------------------------
-# HEADER
-# --------------------------------------------------
-
-st.title("🌊 Oceanus Inventory")
-
-st.caption(
-    "Inventory management for the Oceanus Underwater Robotics Team"
-)
-
-
-# --------------------------------------------------
 # MEMBER SELECTION
 # --------------------------------------------------
 
 with st.container(border=True):
 
-    st.markdown("#### Who are you?")
+    st.markdown(
+    "#### Who are you?",
+    anchors=False
+    )
 
     current_member = st.selectbox(
         "Select your name before making inventory changes",
@@ -167,6 +193,22 @@ if current_member:
     # ------------------------------
     # EDIT ITEM
     # ------------------------------
+
+    st.markdown(
+        """
+        <div style="
+            margin-top: 1.4rem;
+            margin-bottom: 0.6rem;
+            color: #8FAFC1;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+        ">
+            INVENTORY OPERATIONS
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     item_id, updated_data = display_edit_item_form(items)
 
@@ -260,6 +302,14 @@ else:
 # SEARCH
 # --------------------------------------------------
 
+st.html(
+    """
+    <div class="inventory-section-label">
+        INVENTORY DATABASE
+    </div>
+    """
+)
+
 search = display_search()
 
 filtered_items = search_inventory(
@@ -308,7 +358,14 @@ display_inventory(
 # HISTORY
 # --------------------------------------------------
 
-st.divider()
+
+st.html(
+    """
+    <div class="activity-section-label">
+        RECENT ACTIVITY
+    </div>
+    """
+)
 
 display_history(
     history

@@ -1,4 +1,5 @@
 import streamlit as st
+from html import escape
 
 from options import (
     CATEGORIES,
@@ -10,12 +11,16 @@ from options import (
 
 def display_search():
     return st.text_input(
-        "Search inventory",
-        placeholder="Thruster, electronics, Member A..."
+        "Search Inventory",
+        placeholder="Search by item, category, subsystem, or location...",
+        key="inventory_search"
     )
 
 def display_filters(categories, subsystems, locations):
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns(
+        3,
+        gap="small"
+    )
 
     with col1:
         category = st.selectbox(
@@ -38,10 +43,8 @@ def display_filters(categories, subsystems, locations):
     return category, subsystem, location
 
 def display_inventory(items):
-    st.subheader("Inventory")
-
     if not items:
-        st.info("No inventory items match your search.")
+        st.info("No inventory items match the current search and filters.")
         return
 
     display_items = []
@@ -52,7 +55,7 @@ def display_inventory(items):
             "Category": item["category"],
             "Subsystem": item["subsystem"],
             "Location": item["location"],
-            "Quantity": item["quantity"],
+            "Qty": item["quantity"],
             "Type": item["type"],
             "Status": item["status"],
             "Notes": item["notes"]
@@ -63,9 +66,22 @@ def display_inventory(items):
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Quantity": st.column_config.NumberColumn(
-                "Quantity",
+            "Item": st.column_config.TextColumn(
+                "Item",
+                width="medium"
+            ),
+            "Qty": st.column_config.NumberColumn(
+                "Qty",
+                width="small",
                 format="%d"
+            ),
+            "Status": st.column_config.TextColumn(
+                "Status",
+                width="small"
+            ),
+            "Notes": st.column_config.TextColumn(
+                "Notes",
+                width="large"
             )
         }
     )
@@ -254,40 +270,67 @@ def display_dashboard(items):
     )
 
     low_stock = sum(
-        1 for item in items
+        1
+        for item in items
         if item["status"] == "Low"
     )
 
     in_use = sum(
-        1 for item in items
+        1
+        for item in items
         if item["status"] == "In Use"
     )
 
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric(
-        "Inventory Entries",
-        total_entries
+    col1, col2, col3, col4 = st.columns(
+        4,
+        gap="small"
     )
 
-    col2.metric(
-        "Total Quantity",
-        total_quantity
-    )
+    with col1:
+        st.html(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">Inventory Entries</div>
+                <div class="metric-value">{total_entries}</div>
+                <div class="metric-accent"></div>
+            </div>
+            """
+        )
 
-    col3.metric(
-        "Low Stock",
-        low_stock
-    )
+    with col2:
+        st.html(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">Total Quantity</div>
+                <div class="metric-value">{total_quantity}</div>
+                <div class="metric-accent"></div>
+            </div>
+            """
+        )
 
-    col4.metric(
-        "In Use",
-        in_use
-    )
+    with col3:
+        st.html(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">Low Stock</div>
+                <div class="metric-value">{low_stock}</div>
+                <div class="metric-accent"></div>
+            </div>
+            """
+        )
+
+    with col4:
+        st.html(
+            f"""
+            <div class="metric-card">
+                <div class="metric-label">In Use</div>
+                <div class="metric-value">{in_use}</div>
+                <div class="metric-accent"></div>
+            </div>
+            """
+        )
 
 def display_history(history):
-    st.subheader("Recent Activity")
-
     if not history:
         st.info("No inventory activity recorded yet.")
         return
@@ -298,31 +341,56 @@ def display_history(history):
         "DELETE": "🗑️"
     }
 
-    for entry in history[:8]:
-
+    for entry in history[:15]:
         icon = action_icons.get(
             entry["action"],
             "•"
         )
 
-        with st.container(border=True):
+        timestamp = ""
 
-            st.markdown(
-                f"### {icon} {entry['item_name']}"
+        if entry["created_at"]:
+            timestamp = (
+                entry["created_at"]
+                .replace("T", " ")
+                [:16]
             )
 
-            st.write(
-                f"**{entry['member']}** • {entry['action']}"
-            )
+        item_name = escape(str(entry["item_name"]))
+        member = escape(str(entry["member"]))
+        action = escape(str(entry["action"]))
+        details = escape(str(entry["details"] or ""))
 
-            if entry["details"]:
-                st.caption(entry["details"])
+        details_html = ""
 
-            if entry["created_at"]:
-                timestamp = (
-                    entry["created_at"]
-                    .replace("T", " ")
-                    [:16]
-                )
+        if entry["details"]:
+            details_html = f"""
+                <div class="activity-details">
+                    {details}
+                </div>
+            """
 
-                st.caption(timestamp)
+        st.html(
+            f"""
+            <div class="activity-card">
+                <div class="activity-top">
+
+                    <div class="activity-item">
+                        {icon} {item_name}
+                    </div>
+
+                    <div class="activity-action">
+                        {action}
+                    </div>
+
+                </div>
+
+                <div class="activity-meta">
+                    {member} • {timestamp}
+                </div>
+
+                {details_html}
+
+            </div>
+            """
+        )
