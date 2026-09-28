@@ -8,13 +8,11 @@ from options import (
     LOCATIONS
 )
 
-
 def display_search():
     return st.text_input(
         "Search inventory",
         placeholder="Thruster, electronics, Member A..."
     )
-
 
 def display_filters(categories, subsystems, locations):
     col1, col2, col3 = st.columns(3)
@@ -38,7 +36,6 @@ def display_filters(categories, subsystems, locations):
         )
 
     return category, subsystem, location
-
 
 def display_inventory(items):
     st.subheader("Inventory")
@@ -73,33 +70,13 @@ def display_inventory(items):
         }
     )
 
-
 def display_add_item_form():
     with st.expander("Add Item"):
-
-        with st.form(
-            "add_item_form",
-            clear_on_submit=True
-        ):
-
-            name = st.text_input(
-                "Item Name"
-            )
-
-            category = st.selectbox(
-                "Category",
-                CATEGORIES
-            )
-
-            subsystem = st.selectbox(
-                "Subsystem",
-                SUBSYSTEMS
-            )
-
-            location = st.selectbox(
-                "Location",
-                LOCATIONS
-            )
+        with st.form("add_item_form", clear_on_submit=True):
+            name = st.text_input("Item Name")
+            category = st.selectbox("Category", CATEGORIES)
+            subsystem = st.selectbox("Subsystem", SUBSYSTEMS)
+            location = st.selectbox("Location", LOCATIONS)
 
             quantity = st.number_input(
                 "Quantity",
@@ -107,40 +84,33 @@ def display_add_item_form():
                 step=1
             )
 
-            item_type = st.selectbox(
-                "Type",
-                ITEM_TYPES
-            )
+            item_type = st.selectbox("Type", ITEM_TYPES)
+            status = st.selectbox("Status", STATUSES)
+            notes = st.text_area("Notes")
 
-            status = st.selectbox(
-                "Status",
-                STATUSES
-            )
-
-            notes = st.text_area(
-                "Notes"
-            )
-
-            submitted = st.form_submit_button(
-                "Add Item"
-            )
+            submitted = st.form_submit_button("Add Item")
 
         if submitted:
+            name = name.strip()
+
+            if not name:
+                st.error("Item name is required.")
+                return None
+
             item = {
                 "name": name,
                 "category": category,
                 "subsystem": subsystem,
                 "location": location,
-                "quantity": quantity,
+                "quantity": int(quantity),
                 "type": item_type,
                 "status": status,
-                "notes": notes
+                "notes": notes.strip()
             }
 
             return item
 
     return None
-
 
 def display_edit_item_form(items):
     if not items:
@@ -171,25 +141,19 @@ def display_edit_item_form(items):
             category = st.selectbox(
                 "Category",
                 CATEGORIES,
-                index=CATEGORIES.index(
-                    selected_item["category"]
-                )
+                index=CATEGORIES.index(selected_item["category"])
             )
 
             subsystem = st.selectbox(
                 "Subsystem",
                 SUBSYSTEMS,
-                index=SUBSYSTEMS.index(
-                    selected_item["subsystem"]
-                )
+                index=SUBSYSTEMS.index(selected_item["subsystem"])
             )
 
             location = st.selectbox(
                 "Location",
                 LOCATIONS,
-                index=LOCATIONS.index(
-                    selected_item["location"]
-                )
+                index=LOCATIONS.index(selected_item["location"])
             )
 
             quantity = st.number_input(
@@ -202,17 +166,13 @@ def display_edit_item_form(items):
             item_type = st.selectbox(
                 "Type",
                 ITEM_TYPES,
-                index=ITEM_TYPES.index(
-                    selected_item["type"]
-                )
+                index=ITEM_TYPES.index(selected_item["type"])
             )
 
             status = st.selectbox(
                 "Status",
                 STATUSES,
-                index=STATUSES.index(
-                    selected_item["status"]
-                )
+                index=STATUSES.index(selected_item["status"])
             )
 
             notes = st.text_area(
@@ -220,26 +180,29 @@ def display_edit_item_form(items):
                 value=selected_item["notes"] or ""
             )
 
-            submitted = st.form_submit_button(
-                "Save Changes"
-            )
+            submitted = st.form_submit_button("Save Changes")
 
         if submitted:
+            name = name.strip()
+
+            if not name:
+                st.error("Item name is required.")
+                return None, None
+
             updated_data = {
                 "name": name,
                 "category": category,
                 "subsystem": subsystem,
                 "location": location,
-                "quantity": quantity,
+                "quantity": int(quantity),
                 "type": item_type,
                 "status": status,
-                "notes": notes
+                "notes": notes.strip()
             }
 
             return selected_item["id"], updated_data
 
     return None, None
-
 
 def display_delete_item_form(items):
     if not items:

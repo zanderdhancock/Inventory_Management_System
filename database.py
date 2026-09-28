@@ -1,18 +1,36 @@
 from pathlib import Path
 
+import streamlit as st
 from dotenv import dotenv_values
 from supabase import create_client
 
 
-# Load Supabase connection information
+# --------------------------------------------------
+# DATABASE CONNECTION
+# --------------------------------------------------
+
 env_path = Path(__file__).resolve().parent / ".env"
 config = dotenv_values(env_path)
 
-supabase_url = config["SUPABASE_URL"]
-supabase_key = config["SUPABASE_KEY"]
+supabase_url = (
+    config.get("SUPABASE_URL")
+    or st.secrets["SUPABASE_URL"]
+)
 
-supabase = create_client(supabase_url, supabase_key)
+supabase_key = (
+    config.get("SUPABASE_SECRET_KEY")
+    or st.secrets["SUPABASE_SECRET_KEY"]
+)
 
+supabase = create_client(
+    supabase_url,
+    supabase_key
+)
+
+
+# --------------------------------------------------
+# INVENTORY
+# --------------------------------------------------
 
 def get_inventory():
     response = (
@@ -48,7 +66,17 @@ def update_inventory_item(item_id, updated_data):
     return response.data
 
 
-def add_history(item_id, item_name, action, member, details=""):
+# --------------------------------------------------
+# HISTORY
+# --------------------------------------------------
+
+def add_history(
+    item_id,
+    item_name,
+    action,
+    member,
+    details=""
+):
     response = (
         supabase
         .table("inventory_history")

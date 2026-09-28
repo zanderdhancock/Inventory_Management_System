@@ -67,3 +67,19 @@ def get_change_summary(old_item, updated_data):
             )
 
     return ", ".join(changes)
+
+def find_duplicate_item(items, new_item):
+    new_name = new_item["name"].strip().lower()
+    new_location = new_item["location"].strip().lower()
+
+    for item in items:
+        existing_name = str(item["name"]).strip().lower()
+        existing_location = str(item["location"]).strip().lower()
+
+        if (
+            existing_name == new_name
+            and existing_location == new_location
+        ):
+            return item
+
+    return None
