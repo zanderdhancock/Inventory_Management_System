@@ -1,96 +1,133 @@
-from pathlib import Path
-
 import streamlit as st
-from dotenv import dotenv_values
-from supabase import create_client
 
-# Load Supabase info
-env_path = Path(__file__).resolve().parent / ".env"
-config = dotenv_values(env_path)
-
-supabase_url = config["SUPABASE_URL"]
-supabase_key = config["SUPABASE_KEY"]
-
-# Connect to Supabase
-supabase = create_client(supabase_url, supabase_key)
-
-# Get inventory
-response = (
-    supabase
-    .table("inventory_items")
-    .select("*")
-    .execute()
+st.set_page_config(
+    page_title="Oceanus Inventory",
+    page_icon="🌊",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-items = response.data
+from options import MEMBERS
 
-# Page
-st.title("Oceanus Inventory")
-
-# Search bar
-search = st.text_input(
-    "Search inventory",
-    placeholder="Thruster, electronics, Member A..."
+from database import get_inventory, add_inventory_item, update_inventory_item, add_history, get_history
+from inventory import (
+    search_inventory,
+    filter_inventory,
+    get_filter_options
+)
+from components import (
+    display_search,
+    display_filters,
+    display_inventory,
+    display_add_item_form,
+    display_edit_item_form,
+    display_dashboard,
+    display_history
 )
 
-if search:
-    search = search.lower()
+if "success_message" not in st.session_state:
+    st.session_state.success_message = None
 
-    items = [
+st.title("🌊 Oceanus Inventory")
+st.caption("Inventory management for the Oceanus Underwater Robotics Team")
+
+
+with st.sidebar:
+    st.header("Oceanus")
+
+    current_member = st.selectbox(
+        "Current Member",
+        MEMBERS
+    )
+
+    st.caption(
+        "Your name is used to record inventory changes."
+    )
+
+st.session_state.current_member = current_member
+
+if st.session_state.success_message:
+    st.success(st.session_state.success_message)
+    st.session_state.success_message = None
+
+items = get_inventory()
+history = get_history()
+display_dashboard(items)
+
+
+item_id, updated_data = display_edit_item_form(items)
+
+if item_id:
+    old_item = next(
         item for item in items
-        if search in str(item["name"]).lower()
-        or search in str(item["category"]).lower()
-        or search in str(item["subsystem"]).lower()
-        or search in str(item["location"]).lower()
-    ]
+        if item["id"] == item_id
+    )
 
-# Filter options
+    changes = get_change_summary(
+        old_item,
+        updated_data
+    )
 
-subsystems = ["All"] + sorted(
-    list(set(item["subsystem"] for item in items if item["subsystem"]))
+    update_inventory_item(
+        item_id,
+        updated_data
+    )
+
+    if changes:
+        add_history(
+            item_id,
+            updated_data["name"],
+            "EDIT",
+            current_member,
+            changes
+        )
+
+    st.session_state.success_message = (
+        f"{updated_data['name']} updated successfully."
+    )
+
+    st.rerun()
+
+new_item = display_add_item_form()
+
+if new_item:
+    added_items = add_inventory_item(new_item)
+    added_item = added_items[0]
+
+    add_history(
+        added_item["id"],
+        added_item["name"],
+        "ADD",
+        current_member,
+        "Item added to inventory"
+    )
+
+    st.session_state.success_message = (
+        f"{new_item['name']} added successfully."
+    )
+
+    st.rerun()
+
+search = display_search()
+
+items = search_inventory(items, search)
+
+categories, subsystems, locations = get_filter_options(items)
+
+category_filter, subsystem_filter, location_filter = display_filters(
+    categories,
+    subsystems,
+    locations
 )
 
-categories = ["All"] + sorted(
-    list(set(item["category"] for item in items if item["category"]))
-)
-
-locations = ["All"] + sorted(
-    list(set(item["location"] for item in items if item["location"]))
-)
-
-# Filter dropdowns
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    category_filter = st.selectbox("Category", categories)
-
-with col2:
-    subsystem_filter = st.selectbox("Subsystem", subsystems)
-
-with col3:
-    location_filter = st.selectbox("Location", locations)
-
-# Apply filters
-if category_filter != "All":
-    items = [
-        item for item in items
-        if item["category"] == category_filter
-    ]
-
-if subsystem_filter != "All":
-    items = [
-        item for item in items
-        if item["subsystem"] == subsystem_filter
-    ]
-
-if location_filter != "All":
-    items = [
-        item for item in items
-        if item["location"] == location_filter
-    ]
-
-# Table
-st.dataframe(
+items = filter_inventory(
     items,
-    use_container_width=True
+    category_filter,
+    subsystem_filter,
+    location_filter
 )
+
+display_inventory(items)
+
+st.divider()
+display_history(history)
