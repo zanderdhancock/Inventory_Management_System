@@ -30,6 +30,88 @@ _WAVES_URI = (
 )
 
 
+# Sea life drifting behind the page. Silhouettes in a pale blue at low
+# opacity, so they read as shapes in the distance and never compete with
+# the cards. st.html strips inline <svg>, so each is a data-URI background.
+_INK = 'fill="#7FC4E8"'
+
+# ROV hanging from its tether, camera dome facing left
+_ROV = f"""
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 260">
+  <path d="M112 0 C 104 60 122 100 110 140" fill="none" stroke="#7FC4E8"
+        stroke-width="2.5" stroke-dasharray="7 5"/>
+  <g {_INK}>
+    <rect x="40" y="140" width="140" height="28" rx="7"/>
+    <ellipse cx="72" cy="136" rx="17" ry="6"/>
+    <ellipse cx="148" cy="136" rx="17" ry="6"/>
+    <rect x="12" y="178" width="26" height="40" rx="9"/>
+    <rect x="182" y="178" width="26" height="40" rx="9"/>
+    <circle cx="56" cy="198" r="13"/>
+  </g>
+  <g fill="none" stroke="#7FC4E8" stroke-width="5" stroke-linecap="round">
+    <rect x="36" y="168" width="148" height="56" rx="4"/>
+    <path d="M36 196 H184 M46 224 V238 M174 224 V238 M30 238 H190"/>
+  </g>
+</svg>
+"""
+
+# Shark cruising left
+_SHARK = f"""
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 110">
+  <path {_INK} d="M8 60 C 30 48 70 38 120 36 L 148 8 L 162 37 C 200 40 234 46
+    256 52 L 292 20 L 281 58 L 296 92 L 255 66 C 228 74 190 80 152 80
+    L 130 102 L 120 80 C 70 78 32 70 8 60 Z"/>
+</svg>
+"""
+
+# Diver swimming left: tank on the back, fins trailing
+_DIVER = f"""
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 120">
+  <g {_INK}>
+    <circle cx="38" cy="56" r="12"/>
+    <path d="M50 48 C 80 40 130 42 160 50 L 160 70 C 130 76 80 74 50 66 Z"/>
+    <rect x="72" y="34" width="62" height="14" rx="7"/>
+    <path d="M236 31 L 258 20 L 252 46 Z M232 80 L 256 97 L 237 101 Z"/>
+  </g>
+  <g fill="none" stroke="#7FC4E8" stroke-width="9" stroke-linecap="round"
+     stroke-linejoin="round">
+    <path d="M62 64 L 32 80 L 18 77"/>
+    <path d="M158 54 L 204 46 L 238 38"/>
+    <path d="M158 66 L 204 72 L 236 88"/>
+  </g>
+</svg>
+"""
+
+# Bubbles rising from the diver
+_BUBBLES = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 200">
+  <g fill="none" stroke="#9FD6F2" stroke-width="1.6">
+    <circle cx="20" cy="186" r="5"/>
+    <circle cx="12" cy="150" r="4"/>
+    <circle cx="24" cy="112" r="6"/>
+    <circle cx="16" cy="70" r="3.5"/>
+    <circle cx="26" cy="34" r="4.5"/>
+    <circle cx="18" cy="8" r="3"/>
+  </g>
+</svg>
+"""
+
+
+def _svg_uri(svg):
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+
+
+_SEA_LIFE = f"""
+<div class="sea-life" aria-hidden="true">
+  <div class="sea rov rov-near" style="background-image: url('{_svg_uri(_ROV)}')"></div>
+  <div class="sea rov rov-far" style="background-image: url('{_svg_uri(_ROV)}')"></div>
+  <div class="sea shark" style="background-image: url('{_svg_uri(_SHARK)}')"></div>
+  <div class="sea diver" style="background-image: url('{_svg_uri(_DIVER)}')"></div>
+  <div class="sea bubbles" style="background-image: url('{_svg_uri(_BUBBLES)}')"></div>
+</div>
+"""
+
+
 # Base colors live in .streamlit/config.toml. This file adds the ocean
 # backdrop, brand bar, cards and summary tiles the theme can't express.
 def apply_styles():
@@ -54,6 +136,124 @@ def apply_styles():
                     #04111B 100%
                 );
             background-attachment: scroll, scroll, scroll;
+        }
+
+        /* Sea life behind the page */
+        .sea-life {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+
+        [data-testid="stMain"] {
+            position: relative;
+            z-index: 1;
+        }
+
+        .sea {
+            position: absolute;
+            background: center / contain no-repeat;
+        }
+
+        .rov-near {
+            left: 2.5vw;
+            top: 8vh;
+            width: 150px;
+            height: 178px;
+            opacity: 0.22;
+            animation: bob 7s ease-in-out infinite;
+        }
+
+        .rov-far {
+            right: 6vw;
+            top: 14vh;
+            width: 92px;
+            height: 109px;
+            opacity: 0.12;
+            transform: scaleX(-1);
+            animation: bob-far 9s ease-in-out infinite;
+        }
+
+        .shark {
+            top: 46vh;
+            left: 0;
+            width: 260px;
+            height: 95px;
+            opacity: 0.16;
+            animation: cruise 75s linear infinite;
+        }
+
+        .diver {
+            right: 5vw;
+            bottom: 9vh;
+            width: 210px;
+            height: 97px;
+            opacity: 0.18;
+            animation: drift 11s ease-in-out infinite;
+        }
+
+        .bubbles {
+            right: calc(5vw + 168px);
+            bottom: calc(9vh + 64px);
+            width: 28px;
+            height: 140px;
+            opacity: 0.35;
+            animation: rise 6s ease-in infinite;
+        }
+
+        @keyframes bob {
+            50% { transform: translateY(12px); }
+        }
+
+        @keyframes bob-far {
+            0%, 100% { transform: scaleX(-1) translateY(0); }
+            50% { transform: scaleX(-1) translateY(8px); }
+        }
+
+        @keyframes cruise {
+            from { transform: translateX(105vw); }
+            to { transform: translateX(-300px); }
+        }
+
+        @keyframes drift {
+            50% { transform: translate(-14px, 6px); }
+        }
+
+        @keyframes rise {
+            from { transform: translateY(0); opacity: 0.35; }
+            to { transform: translateY(-60px); opacity: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .sea {
+                animation: none;
+            }
+
+            .shark {
+                transform: translateX(70vw);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .rov-far,
+            .diver,
+            .bubbles {
+                display: none;
+            }
+
+            .rov-near {
+                width: 96px;
+                height: 114px;
+                opacity: 0.16;
+            }
+
+            .shark {
+                width: 170px;
+                height: 62px;
+                opacity: 0.12;
+            }
         }
 
         .block-container {
@@ -426,4 +626,5 @@ def apply_styles():
 
         </style>
         """.replace("WAVES_URI", _WAVES_URI)
+        + _SEA_LIFE
     )
