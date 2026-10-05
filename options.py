@@ -11,16 +11,13 @@ CATEGORIES = [
     "Misc."
 ]
 
-SUBSYSTEMS = [
-    "Mechanical",
-    "Electrical",
-    "Controls",
-    "Manipulator",
-    "Propulsion",
-    "Cameras/Sensors",
-    "Tether",
-    "Waterproofing",
-    "General"
+# Stored in the inventory_items.subsystem column.
+SUBTEAMS = [
+    "F-P",
+    "EPS",
+    "TMS",
+    "GNC",
+    "C-C"
 ]
 
 ITEM_TYPES = [

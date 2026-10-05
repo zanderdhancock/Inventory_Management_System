@@ -66,6 +66,18 @@ def update_inventory_item(item_id, updated_data):
     return response.data
 
 
+def delete_inventory_item(item_id):
+    response = (
+        supabase
+        .table("inventory_items")
+        .delete()
+        .eq("id", item_id)
+        .execute()
+    )
+
+    return response.data
+
+
 # --------------------------------------------------
 # HISTORY
 # --------------------------------------------------
@@ -93,13 +105,17 @@ def add_history(
     return response.data
 
 
-def get_history():
-    response = (
+def get_history(limit=None):
+    query = (
         supabase
         .table("inventory_history")
         .select("*")
         .order("created_at", desc=True)
-        .execute()
     )
+
+    if limit:
+        query = query.limit(limit)
+
+    response = query.execute()
 
     return response.data
