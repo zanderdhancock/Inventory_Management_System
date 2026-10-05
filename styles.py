@@ -157,8 +157,7 @@ def apply_styles():
         /* Cards that hold the table and the activity log */
         .st-key-inventory_card,
         .st-key-projects_card,
-        .st-key-activity_card,
-        .st-key-admin_card {
+        .st-key-activity_card {
             background: rgba(6, 25, 39, 0.82);
             border-color: rgba(120, 190, 230, 0.14);
             border-radius: 12px;
@@ -414,8 +413,7 @@ def apply_styles():
 
             .st-key-inventory_card,
             .st-key-projects_card,
-            .st-key-activity_card,
-            .st-key-admin_card {
+            .st-key-activity_card {
                 padding: 0.8rem;
             }
 

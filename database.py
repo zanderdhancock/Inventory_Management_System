@@ -126,7 +126,7 @@ def get_history(limit=None):
 
 @st.cache_data(ttl=300, show_spinner=False)
 def supports_extended_fields():
-    """True once supabase/2026-10-05_demo_features.sql has been run."""
+    """True once supabase/2026-10-05_add_project_column.sql has been run."""
     try:
         (
             supabase
@@ -139,46 +139,3 @@ def supports_extended_fields():
         return False
 
     return True
-
-
-# --------------------------------------------------
-# EDITABLE LISTS
-# --------------------------------------------------
-
-def get_options():
-    """Rows from inventory_options, or None if the table doesn't exist."""
-    try:
-        response = (
-            supabase
-            .table("inventory_options")
-            .select("list_name,value,position")
-            .execute()
-        )
-    except Exception:
-        return None
-
-    return response.data
-
-
-def add_options(rows):
-    response = (
-        supabase
-        .table("inventory_options")
-        .insert(rows)
-        .execute()
-    )
-
-    return response.data
-
-
-def remove_option(list_name, value):
-    response = (
-        supabase
-        .table("inventory_options")
-        .delete()
-        .eq("list_name", list_name)
-        .eq("value", value)
-        .execute()
-    )
-
-    return response.data

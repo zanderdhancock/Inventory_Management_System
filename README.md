@@ -16,16 +16,14 @@ Team inventory was spread across members' dorms, homes and the club storage room
 - **Add, edit and delete in modals.** Tick a row and choose Edit, Delete or History. Every change asks who is making it.
 - **Projects.** Allocate items to the ROV build, competition, pool testing and other projects, and see what each one holds.
 - **Full activity history** with search, member, action and date filters, plus CSV export. Every add, edit and delete is kept.
-- **Admin tab** for members, locations, categories, subteams and projects. A value that is still in use can't be removed.
+- **Dropdown lists** for members, locations, categories, subteams and projects live in `options.py`, so changing them is a one-line edit.
 - **Works on phones.** The layout adapts for checking stock at the pool or in the lab.
 
 | Edit an item | Projects |
 | --- | --- |
 | ![Edit item](docs/screenshots/edit-item.png) | ![Projects](docs/screenshots/projects.png) |
 
-| Activity history | Admin |
-| --- | --- |
-| ![Activity](docs/screenshots/activity.png) | ![Admin](docs/screenshots/admin.png) |
+![Activity history](docs/screenshots/activity.png)
 
 <p align="center"><img src="docs/screenshots/mobile.png" alt="Mobile view" width="300"></p>
 
@@ -39,13 +37,12 @@ Streamlit app (Python, Streamlit Community Cloud)
    ├── components.py   UI: header, table, modals, tabs
    ├── inventory.py    search, filters, validation, history logic
    ├── database.py     Supabase queries
-   ├── options.py      default lists and the editable-list loader
+   ├── options.py      dropdown lists (members, locations, projects...)
    └── styles.py       ocean theme
    │
 Supabase (PostgreSQL)
    ├── inventory_items
-   ├── inventory_history
-   └── inventory_options
+   └── inventory_history
 ```
 
 ## Security model
@@ -80,9 +77,9 @@ Two one-time SQL scripts live in `supabase/`. Run them in the Supabase SQL edito
 | Script | What it does |
 | --- | --- |
 | `2026-10-05_subsystems_to_subteams.sql` | Moves old subsystem names onto the five subteams |
-| `2026-10-05_demo_features.sql` | Adds a `project` column to items, plus the `inventory_options` table for the Admin tab |
+| `2026-10-05_add_project_column.sql` | Adds a `project` column to items |
 
-The app runs without the second script. Projects and the Admin tab simply stay hidden until it has been run.
+The app runs without the second script. Projects simply stay hidden until it has been run.
 
 ## Testing
 

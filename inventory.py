@@ -18,7 +18,7 @@ FIELD_LABELS = {
     "project": "project"
 }
 
-# Columns added by supabase/2026-10-05_demo_features.sql.
+# Columns added by supabase/2026-10-05_add_project_column.sql.
 EXTENDED_FIELDS = [
     "project"
 ]
@@ -155,10 +155,6 @@ def summarize_projects(items, projects):
         })
 
     return summary
-
-
-def count_usage(items, field, value):
-    return sum(1 for item in items if item.get(field) == value)
 
 
 def option_index(options, value):

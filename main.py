@@ -78,10 +78,7 @@ from database import (
     delete_inventory_item,
     add_history,
     get_history,
-    supports_extended_fields,
-    get_options,
-    add_options,
-    remove_option
+    supports_extended_fields
 )
 
 from inventory import (
@@ -107,7 +104,6 @@ from components import (
     delete_item_dialog,
     item_history_dialog,
     display_projects,
-    display_admin,
     display_footer,
     FEATURES
 )
@@ -136,17 +132,13 @@ try:
     stored_items = get_inventory()
     items = apply_subteams(stored_items)
     history = get_history()
-    option_rows = get_options()
     extended = supports_extended_fields()
 except Exception as error:
     print(f"Failed to load inventory: {error!r}")
     st.error("Unable to load inventory. Please refresh and try again.")
     st.stop()
 
-# None means the inventory_options table hasn't been created yet.
-options.load(option_rows)
 FEATURES["extended"] = extended
-
 
 
 # --------------------------------------------------
@@ -296,61 +288,6 @@ def remove_item(item):
     return None
 
 
-def add_list_value(list_name, value):
-    value = (value or "").strip()
-
-    if not value:
-        return "Enter a value to add."
-
-    current = options.get(list_name)
-
-    if value.lower() in (existing.lower() for existing in current):
-        return f"{value} is already on the list."
-
-    if value == UNASSIGNED:
-        return f"{UNASSIGNED} is reserved."
-
-    stored = {
-        row["value"]
-        for row in option_rows or []
-        if row["list_name"] == list_name
-    }
-
-    # A list still running on defaults gets them saved alongside the new value.
-    rows = [
-        {"list_name": list_name, "value": existing, "position": position}
-        for position, existing in enumerate(current)
-        if existing not in stored
-    ]
-
-    rows.append({
-        "list_name": list_name,
-        "value": value,
-        "position": len(current)
-    })
-
-    try:
-        add_options(rows)
-    except Exception as error:
-        print(f"Failed to add option: {error!r}")
-        return "Unable to save. Please try again."
-
-    st.session_state.success_message = f"Added {value}."
-
-    return None
-
-
-def remove_list_value(list_name, value):
-    try:
-        remove_option(list_name, value)
-    except Exception as error:
-        print(f"Failed to remove option: {error!r}")
-        st.session_state.success_message = "Unable to remove. Please try again."
-        return
-
-    st.session_state.success_message = f"Removed {value}."
-
-
 # --------------------------------------------------
 # PAGE
 # --------------------------------------------------
@@ -359,8 +296,8 @@ display_summary(items)
 
 can_edit = current_member is not None
 
-inventory_tab, projects_tab, activity_tab, admin_tab = st.tabs(
-    ["Inventory", "Projects", "Activity", "Admin"]
+inventory_tab, projects_tab, activity_tab = st.tabs(
+    ["Inventory", "Projects", "Activity"]
 )
 
 with inventory_tab, st.container(border=True, key="inventory_card"):
@@ -430,15 +367,5 @@ with activity_tab, st.container(border=True, key="activity_card"):
 with projects_tab, st.container(border=True, key="projects_card"):
 
     display_projects(items)
-
-with admin_tab, st.container(border=True, key="admin_card"):
-
-    display_admin(
-        items,
-        can_edit,
-        option_rows is not None,
-        add_list_value,
-        remove_list_value
-    )
 
 display_footer()
