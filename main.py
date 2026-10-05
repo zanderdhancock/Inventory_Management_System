@@ -69,7 +69,7 @@ if not st.session_state.authenticated:
 
     st.stop()
 
-from options import MEMBERS
+import options
 
 from database import (
     get_inventory,
@@ -77,7 +77,11 @@ from database import (
     update_inventory_item,
     delete_inventory_item,
     add_history,
-    get_history
+    get_history,
+    supports_extended_fields,
+    get_options,
+    add_options,
+    remove_option
 )
 
 from inventory import (
@@ -87,7 +91,9 @@ from inventory import (
     get_change_summary,
     find_duplicate_item,
     validate_item,
-    apply_subteams
+    apply_subteams,
+    auto_status,
+    UNASSIGNED
 )
 
 from components import (
@@ -100,7 +106,10 @@ from components import (
     add_item_dialog,
     edit_item_dialog,
     delete_item_dialog,
-    item_history_dialog
+    item_history_dialog,
+    display_projects,
+    display_admin,
+    FEATURES
 )
 
 
@@ -115,20 +124,8 @@ if "success_message" not in st.session_state:
 if "table_version" not in st.session_state:
     st.session_state.table_version = 0
 
-
-# --------------------------------------------------
-# HEADER
-# --------------------------------------------------
-
-current_member = display_header(MEMBERS)
-
-if st.session_state.success_message:
-    st.toast(
-        st.session_state.success_message,
-        icon=":material/check_circle:"
-    )
-
-    st.session_state.success_message = None
+if "status_choice" not in st.session_state:
+    st.session_state.status_choice = "All"
 
 
 # --------------------------------------------------
@@ -139,10 +136,32 @@ try:
     stored_items = get_inventory()
     items = apply_subteams(stored_items)
     history = get_history()
+    option_rows = get_options()
+    extended = supports_extended_fields()
 except Exception as error:
     print(f"Failed to load inventory: {error!r}")
     st.error("Unable to load inventory. Please refresh and try again.")
     st.stop()
+
+# None means the inventory_options table hasn't been created yet.
+options.load(option_rows)
+FEATURES["extended"] = extended
+
+
+
+# --------------------------------------------------
+# HEADER
+# --------------------------------------------------
+
+current_member = display_header(options.get("members"))
+
+if st.session_state.success_message:
+    st.toast(
+        st.session_state.success_message,
+        icon=":material/check_circle:"
+    )
+
+    st.session_state.success_message = None
 
 
 # --------------------------------------------------
@@ -157,6 +176,9 @@ def finish_change(message):
 
 def save_new_item(new_item):
     error = validate_item(new_item)
+
+    if extended:
+        new_item["status"] = auto_status(new_item)
 
     if error:
         return error
@@ -198,6 +220,9 @@ def save_new_item(new_item):
 
 def save_item_changes(old_item, updated_data):
     error = validate_item(updated_data)
+
+    if extended:
+        updated_data["status"] = auto_status(updated_data)
 
     if error:
         return error
@@ -277,6 +302,61 @@ def remove_item(item):
     return None
 
 
+def add_list_value(list_name, value):
+    value = (value or "").strip()
+
+    if not value:
+        return "Enter a value to add."
+
+    current = options.get(list_name)
+
+    if value.lower() in (existing.lower() for existing in current):
+        return f"{value} is already on the list."
+
+    if value == UNASSIGNED:
+        return f"{UNASSIGNED} is reserved."
+
+    stored = {
+        row["value"]
+        for row in option_rows or []
+        if row["list_name"] == list_name
+    }
+
+    # A list still running on defaults gets them saved alongside the new value.
+    rows = [
+        {"list_name": list_name, "value": existing, "position": position}
+        for position, existing in enumerate(current)
+        if existing not in stored
+    ]
+
+    rows.append({
+        "list_name": list_name,
+        "value": value,
+        "position": len(current)
+    })
+
+    try:
+        add_options(rows)
+    except Exception as error:
+        print(f"Failed to add option: {error!r}")
+        return "Unable to save. Please try again."
+
+    st.session_state.success_message = f"Added {value}."
+
+    return None
+
+
+def remove_list_value(list_name, value):
+    try:
+        remove_option(list_name, value)
+    except Exception as error:
+        print(f"Failed to remove option: {error!r}")
+        st.session_state.success_message = "Unable to remove. Please try again."
+        return
+
+    st.session_state.success_message = f"Removed {value}."
+
+
 # --------------------------------------------------
 # PAGE
 # --------------------------------------------------
@@ -285,7 +365,9 @@ display_summary(items)
 
 can_edit = current_member is not None
 
-inventory_tab, activity_tab = st.tabs(["Inventory", "Activity"])
+inventory_tab, projects_tab, activity_tab, admin_tab = st.tabs(
+    ["Inventory", "Projects", "Activity", "Admin"]
+)
 
 with inventory_tab, st.container(border=True, key="inventory_card"):
 
@@ -293,14 +375,23 @@ with inventory_tab, st.container(border=True, key="inventory_card"):
         items
     )
 
+    projects = ["All"] + options.get("projects") + [UNASSIGNED]
+
     search, filters, add_clicked = display_toolbar(
         can_edit,
         categories,
         subteams,
-        locations
+        locations,
+        projects
     )
 
-    category_filter, subteam_filter, location_filter, status_filter = filters
+    (
+        category_filter,
+        subteam_filter,
+        location_filter,
+        status_filter,
+        project_filter
+    ) = filters
 
     if add_clicked:
         add_item_dialog(save_new_item)
@@ -310,7 +401,8 @@ with inventory_tab, st.container(border=True, key="inventory_card"):
         category_filter,
         subteam_filter,
         location_filter,
-        status_filter
+        status_filter,
+        project_filter
     )
 
     # The table renders after the bar, so read its selection from state.
@@ -340,3 +432,17 @@ with inventory_tab, st.container(border=True, key="inventory_card"):
 with activity_tab, st.container(border=True, key="activity_card"):
 
     display_history(history)
+
+with projects_tab, st.container(border=True, key="projects_card"):
+
+    display_projects(items)
+
+with admin_tab, st.container(border=True, key="admin_card"):
+
+    display_admin(
+        items,
+        can_edit,
+        option_rows is not None,
+        add_list_value,
+        remove_list_value
+    )

@@ -9,7 +9,9 @@ from inventory import (
     validate_item,
     filter_history,
     format_timestamp,
-    apply_subteams
+    apply_subteams,
+    auto_status,
+    summarize_projects
 )
 
 
@@ -111,3 +113,23 @@ def test_apply_subteams_maps_old_subsystems():
     assert [i["subsystem"] for i in apply_subteams(items)] == ["F-P", "General"]
     # The stored rows are left untouched.
     assert items[0]["subsystem"] == "Propulsion"
+
+
+def test_auto_status_follows_minimum():
+    base = {"status": "Available", "minimum_quantity": 20}
+    assert auto_status({**base, "quantity": 14}) == "Low"
+    assert auto_status({**base, "quantity": 0}) == "Out"
+    assert auto_status({**base, "quantity": 25, "status": "Low"}) == "Available"
+    assert auto_status({**base, "quantity": 5, "status": "In Use"}) == "In Use"
+    assert auto_status({"status": "Low", "quantity": 50, "minimum_quantity": None}) == "Low"
+
+
+def test_summarize_projects_groups_unassigned_last():
+    items = [
+        {**ITEMS[0], "project": "ROV build"},
+        {**ITEMS[1], "project": None}
+    ]
+    summary = summarize_projects(items, ["ROV build", "Training"])
+    assert [row["project"] for row in summary] == ["ROV build", "Training", "Unassigned"]
+    assert summary[0]["units"] == 4
+    assert summary[2]["attention"] == 1

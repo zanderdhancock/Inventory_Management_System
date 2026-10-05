@@ -1,23 +1,34 @@
 import base64
+from html import escape
 import csv
 import io
+from datetime import date
 
 import pandas as pd
 import streamlit as st
 
+import options
+
 from options import (
-    CATEGORIES,
-    SUBTEAMS,
     ITEM_TYPES,
     STATUSES,
-    LOCATIONS
+    CONDITIONS,
+    EDITABLE_LISTS,
+    LIST_FIELDS
 )
 
 from inventory import (
+    UNASSIGNED,
     option_index,
     format_timestamp,
-    filter_history
+    filter_history,
+    summarize_projects,
+    count_usage
 )
+
+
+# Set by main.py once it knows whether the extra columns exist in Supabase.
+FEATURES = {"extended": False}
 
 
 # (text, background) per status, for the table and summary dots.
@@ -56,7 +67,7 @@ FILTER_KEYS = [
     "filter_category",
     "filter_subteam",
     "filter_location",
-    "filter_status"
+    "filter_project"
 ]
 
 
@@ -109,7 +120,20 @@ def display_header(members):
         )
 
 
+# The status filter's value lives in st.session_state.status_choice. Tiles
+# change it and bump status_version, which gives the segmented control a
+# fresh key so it picks the new value up.
+def _show_status(status):
+    st.session_state.status_choice = status or "All"
+    st.session_state.status_version = st.session_state.get("status_version", 0) + 1
+
+
+def _status_changed(key):
+    st.session_state.status_choice = st.session_state.get(key) or "All"
+
+
 def display_summary(items):
+    """Summary tiles. Clicking one filters the inventory table."""
     total_quantity = sum(
         int(item["quantity"])
         for item in items
@@ -127,25 +151,39 @@ def display_summary(items):
         ("In use", count("In Use"), "In Use")
     ]
 
-    cells = ""
+    with st.container(key="stats"):
+        columns = st.columns(len(stats), gap="small")
 
-    for label, value, status in stats:
-        dot = ""
+        for column, (label, value, status) in zip(columns, stats):
+            dot = ""
 
-        if status:
-            dot = (
-                f'<span class="dot" '
-                f'style="background:{STATUS_COLORS[status][0]}"></span>'
+            if status:
+                dot = (
+                    f'<span class="dot" '
+                    f'style="background:{STATUS_COLORS[status][0]}"></span>'
+                )
+
+            active = (
+                status is not None
+                and st.session_state.get("status_choice") == status
             )
 
-        cells += f"""
-            <div class="stat">
-                <div class="stat-label">{dot}{label}</div>
-                <div class="stat-value">{value}</div>
-            </div>
-        """
+            with column, st.container(key=f"tile_{label.replace(' ', '_')}"):
+                st.html(
+                    f"""
+                    <div class="stat{' stat-active' if active else ''}">
+                        <div class="stat-label">{dot}{label}</div>
+                        <div class="stat-value">{value}</div>
+                    </div>
+                    """
+                )
 
-    st.html(f'<div class="stats">{cells}</div>')
+                st.button(
+                    f"Show {label.lower()}",
+                    key=f"stat_button_{label}",
+                    on_click=_show_status,
+                    args=(status,)
+                )
 
 
 # --------------------------------------------------
@@ -158,9 +196,14 @@ def clear_filters():
     for key in FILTER_KEYS:
         st.session_state[key] = "All"
 
+    _show_status("All")
+
 
 def filters_active():
     if st.session_state.get("inventory_search"):
+        return True
+
+    if st.session_state.get("status_choice", "All") != "All":
         return True
 
     return any(
@@ -170,6 +213,7 @@ def filters_active():
 
 
 def _active_filter_count():
+    # Status has its own visible control, so the popover doesn't count it.
     return sum(
         1
         for key in FILTER_KEYS
@@ -177,7 +221,7 @@ def _active_filter_count():
     )
 
 
-def display_toolbar(can_edit, categories, subteams, locations):
+def display_toolbar(can_edit, categories, subteams, locations, projects):
     """Search, filters and Add item on one row."""
     col1, col2, col3 = st.columns(
         [6, 1.3, 1.3],
@@ -216,11 +260,14 @@ def display_toolbar(can_edit, categories, subteams, locations):
                 key="filter_location"
             )
 
-            status = st.selectbox(
-                "Status",
-                ["All"] + STATUSES,
-                key="filter_status"
-            )
+            project = "All"
+
+            if FEATURES["extended"]:
+                project = st.selectbox(
+                    "Project",
+                    projects,
+                    key="filter_project"
+                )
 
             st.button(
                 "Clear filters",
@@ -239,7 +286,22 @@ def display_toolbar(can_edit, categories, subteams, locations):
             width="stretch"
         )
 
-    return search, (category, subteam, location, status), add_clicked
+    # Status sits outside the popover so the summary tiles can set it.
+    status_key = f"status_filter_{st.session_state.get('status_version', 0)}"
+
+    st.segmented_control(
+        "Status",
+        ["All"] + STATUSES,
+        default=st.session_state.get("status_choice", "All"),
+        key=status_key,
+        on_change=_status_changed,
+        args=(status_key,),
+        label_visibility="collapsed"
+    )
+
+    status = st.session_state.get("status_choice", "All")
+
+    return search, (category, subteam, location, status, project), add_clicked
 
 
 # --------------------------------------------------
@@ -266,19 +328,30 @@ def display_inventory(items, table_key):
         st.info("No items match your search and filters.")
         return None
 
-    table = pd.DataFrame([
-        {
+    rows = []
+
+    for item in items:
+        row = {
             "Item": item["name"],
             "Qty": item["quantity"],
             "Status": item["status"],
             "Location": item["location"],
-            "Subteam": item["subsystem"],
-            "Category": item["category"],
-            "Type": item["type"],
-            "Notes": item["notes"] or ""
+            "Subteam": item["subsystem"]
         }
-        for item in items
-    ])
+
+        if FEATURES["extended"]:
+            minimum = item.get("minimum_quantity")
+            row["Min"] = "" if minimum is None else str(minimum)
+            row["Project"] = item.get("project") or ""
+            row["Condition"] = item.get("condition") or ""
+
+        row["Category"] = item["category"]
+        row["Type"] = item["type"]
+        row["Notes"] = item["notes"] or ""
+
+        rows.append(row)
+
+    table = pd.DataFrame(rows)
 
     event = st.dataframe(
         table.style.map(_status_style, subset=["Status"]),
@@ -288,8 +361,13 @@ def display_inventory(items, table_key):
         on_select="rerun",
         selection_mode="single-row",
         column_config={
-            "Item": st.column_config.TextColumn("Item", width="medium"),
+            "Item": st.column_config.TextColumn("Item", width="medium", pinned=True),
             "Qty": st.column_config.NumberColumn("Qty", width="small", format="%d"),
+            "Min": st.column_config.TextColumn(
+                "Min",
+                width="small",
+                help="Minimum quantity. At or below it the item is marked Low."
+            ),
             "Status": st.column_config.TextColumn("Status", width="small"),
             "Notes": st.column_config.TextColumn("Notes", width="large")
         }
@@ -312,15 +390,17 @@ def display_selection_bar(selected_item, can_edit, shown, total):
 
             with col1:
                 if can_edit:
-                    st.markdown(
-                        "Click a row's checkbox to edit, delete, "
+                    hint = (
+                        "Tick a row's checkbox to edit, delete, "
                         "or see its history."
                     )
                 else:
-                    st.markdown(
+                    hint = (
                         "Choose your name at the top to add, edit, "
                         "or delete items."
                     )
+
+                st.html(f'<div class="bar-text">{hint}</div>')
 
             with col2:
                 st.html(
@@ -329,45 +409,55 @@ def display_selection_bar(selected_item, can_edit, shown, total):
 
             return None
 
-        col1, col2, col3, col4 = st.columns(
-            [4, 1, 1, 1],
+        col1, col2 = st.columns(
+            [4, 3],
             gap="small",
             vertical_alignment="center"
         )
 
         with col1:
-            st.markdown(
-                f"**{selected_item['name']}** · "
-                f"{selected_item['location']} · "
-                f"qty {selected_item['quantity']}"
+            st.html(
+                f'<div class="bar-text"><strong>{escape(selected_item["name"])}</strong>'
+                f' · {escape(selected_item["location"])}'
+                f' · qty {selected_item["quantity"]}</div>'
             )
 
-        with col2:
-            if st.button(
-                "Edit",
-                icon=":material/edit:",
-                type="primary",
-                disabled=not can_edit,
-                width="stretch"
-            ):
-                return "edit"
+        # Render all three before returning, so none vanish while a modal is open.
+        with col2, st.container(key="bar_actions"):
+            edit_col, delete_col, history_col = st.columns(3, gap="small")
 
-        with col3:
-            if st.button(
-                "Delete",
-                icon=":material/delete:",
-                disabled=not can_edit,
-                width="stretch"
-            ):
-                return "delete"
+            with edit_col:
+                edit = st.button(
+                    "Edit",
+                    icon=":material/edit:",
+                    type="primary",
+                    disabled=not can_edit,
+                    width="stretch"
+                )
 
-        with col4:
-            if st.button(
-                "History",
-                icon=":material/history:",
-                width="stretch"
-            ):
-                return "history"
+            with delete_col:
+                delete = st.button(
+                    "Delete",
+                    icon=":material/delete:",
+                    disabled=not can_edit,
+                    width="stretch"
+                )
+
+            with history_col:
+                history = st.button(
+                    "History",
+                    icon=":material/history:",
+                    width="stretch"
+                )
+
+    if edit:
+        return "edit"
+
+    if delete:
+        return "delete"
+
+    if history:
+        return "history"
 
     return None
 
@@ -376,8 +466,23 @@ def display_selection_bar(selected_item, can_edit, shown, total):
 # ITEM MODALS
 # --------------------------------------------------
 
+def _parse_date(value):
+    if not value:
+        return None
+
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return None
+
+
 def _item_fields(item=None):
     item = item or {}
+    categories = options.get("categories")
+    subteams = options.get("subteams")
+    locations = options.get("locations")
+    projects = options.get("projects")
+    extended = FEATURES["extended"]
 
     name = st.text_input(
         "Item name",
@@ -389,29 +494,33 @@ def _item_fields(item=None):
     with col1:
         category = st.selectbox(
             "Category",
-            CATEGORIES,
-            index=option_index(CATEGORIES, item.get("category")),
+            categories,
+            index=option_index(categories, item.get("category")),
             placeholder="Select a category"
         )
 
         location = st.selectbox(
             "Location",
-            LOCATIONS,
-            index=option_index(LOCATIONS, item.get("location")),
+            locations,
+            index=option_index(locations, item.get("location")),
             placeholder="Select a location"
         )
 
         status = st.selectbox(
             "Status",
             STATUSES,
-            index=option_index(STATUSES, item.get("status", STATUSES[0]))
+            index=option_index(STATUSES, item.get("status", STATUSES[0])),
+            help=(
+                "With a minimum quantity set, Low and Out update on their "
+                "own. In Use is always manual."
+            ) if extended else None
         )
 
     with col2:
         subteam = st.selectbox(
             "Subteam",
-            SUBTEAMS,
-            index=option_index(SUBTEAMS, item.get("subsystem")),
+            subteams,
+            index=option_index(subteams, item.get("subsystem")),
             placeholder="Select a subteam"
         )
 
@@ -428,6 +537,67 @@ def _item_fields(item=None):
             step=1
         )
 
+    data = {}
+
+    if extended:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            project = st.selectbox(
+                "Project",
+                projects,
+                index=option_index(projects, item.get("project")),
+                placeholder=UNASSIGNED
+            )
+
+        with col2:
+            minimum = st.number_input(
+                "Minimum quantity",
+                min_value=0,
+                value=item.get("minimum_quantity"),
+                step=1,
+                placeholder="No minimum",
+                help="When quantity drops to this or below, the item is marked Low."
+            )
+
+        with st.expander(
+            "Condition and maintenance",
+            expanded=bool(item.get("condition") or item.get("last_maintenance"))
+        ):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                condition = st.selectbox(
+                    "Condition",
+                    CONDITIONS,
+                    index=option_index(CONDITIONS, item.get("condition")),
+                    placeholder="Not recorded"
+                )
+
+            with col2:
+                last_maintenance = st.date_input(
+                    "Last maintenance",
+                    value=_parse_date(item.get("last_maintenance")),
+                    format="MM/DD/YYYY"
+                )
+
+            maintenance_notes = st.text_area(
+                "Maintenance notes",
+                value=item.get("maintenance_notes") or "",
+                max_chars=500,
+                height=80
+            )
+
+        data = {
+            "project": project,
+            "minimum_quantity": None if minimum is None else int(minimum),
+            "condition": condition,
+            "last_maintenance": (
+                last_maintenance.isoformat() if last_maintenance else None
+            ),
+            "maintenance_notes": maintenance_notes.strip() or None
+        }
+
     notes = st.text_area(
         "Notes",
         value=item.get("notes") or "",
@@ -442,7 +612,8 @@ def _item_fields(item=None):
         "quantity": int(quantity),
         "type": item_type,
         "status": status,
-        "notes": notes.strip()
+        "notes": notes.strip(),
+        **data
     }
 
 
@@ -487,7 +658,7 @@ def add_item_dialog(on_save):
 
 @st.dialog("Edit item", width="medium")
 def edit_item_dialog(item, on_save):
-    if item["subsystem"] not in SUBTEAMS:
+    if item["subsystem"] not in options.get("subteams"):
         st.info(
             f"This item is still filed under \"{item['subsystem']}\". "
             "Pick its subteam before saving."
@@ -659,3 +830,176 @@ def display_history(history, item=None, key="history"):
 def item_history_dialog(history, item):
     st.markdown(f"**{item['name']}** · {item['location']}")
     display_history(history, item=item, key="item_history")
+
+
+# --------------------------------------------------
+# PROJECTS
+# --------------------------------------------------
+
+def _plural(count, word):
+    return f"{count} {word}{'' if count == 1 else 's'}"
+
+
+def display_projects(items):
+    if not FEATURES["extended"]:
+        _setup_notice("Project allocation")
+        return
+
+    summary = summarize_projects(items, options.get("projects"))
+
+    cards = ""
+
+    for row in summary:
+        attention = ""
+
+        if row["attention"]:
+            attention = (
+                f'<div class="project-flag">{row["attention"]} low or out</div>'
+            )
+
+        cards += f"""
+            <div class="project-card">
+                <div class="project-name">{escape(row['project'])}</div>
+                <div class="project-meta">
+                    {_plural(row['items'], 'item')} · {_plural(row['units'], 'unit')}
+                </div>
+                {attention}
+            </div>
+        """
+
+    st.html(f'<div class="project-grid">{cards}</div>')
+
+    names = [row["project"] for row in summary]
+
+    project = st.segmented_control(
+        "Show items for",
+        names,
+        default=names[0] if names else None,
+        key="project_view"
+    )
+
+    if not project:
+        return
+
+    members = [
+        item for item in items
+        if (item.get("project") or UNASSIGNED) == project
+    ]
+
+    if not members:
+        st.caption("Nothing is allocated to this project yet.")
+        return
+
+    table = pd.DataFrame([
+        {
+            "Item": item["name"],
+            "Qty": item["quantity"],
+            "Status": item["status"],
+            "Subteam": item["subsystem"],
+            "Location": item["location"],
+            "Condition": item.get("condition") or ""
+        }
+        for item in members
+    ])
+
+    st.dataframe(
+        table.style.map(_status_style, subset=["Status"]),
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Item": st.column_config.TextColumn("Item", width="medium", pinned=True),
+            "Qty": st.column_config.NumberColumn("Qty", width="small", format="%d")
+        }
+    )
+
+    st.caption(
+        "To move an item between projects, edit it on the Inventory tab."
+    )
+
+
+# --------------------------------------------------
+# ADMIN
+# --------------------------------------------------
+
+def _setup_notice(feature):
+    st.info(
+        f"{feature} turns on after the one-time database setup in "
+        "`supabase/2026-10-05_demo_features.sql` has been run in Supabase."
+    )
+
+
+def display_admin(items, can_edit, enabled, on_add, on_remove):
+    if not enabled:
+        _setup_notice("Editing lists")
+        return
+
+    if not can_edit:
+        st.caption("Choose your name at the top to change these lists.")
+
+    list_name = st.segmented_control(
+        "List",
+        list(EDITABLE_LISTS),
+        format_func=EDITABLE_LISTS.get,
+        default="members",
+        key="admin_list"
+    ) or "members"
+
+    values = options.get(list_name)
+    field = LIST_FIELDS.get(list_name)
+
+    for value in values:
+        used = count_usage(items, field, value) if field else 0
+
+        col1, col2 = st.columns([5, 1], vertical_alignment="center")
+
+        with col1:
+            usage = f" · used by {used} item{'s' if used != 1 else ''}" if used else ""
+            st.html(f"<div class='bar-text'>{escape(value)}<span class='muted'>{usage}</span></div>")
+
+        with col2:
+            if used:
+                reason = "In use, so it can't be removed"
+            elif len(values) == 1:
+                reason = "Each list needs at least one value"
+            else:
+                reason = None
+
+            st.button(
+                "Remove",
+                key=f"remove_{list_name}_{value}",
+                type="tertiary",
+                disabled=not can_edit or reason is not None,
+                help=reason,
+                on_click=on_remove,
+                args=(list_name, value),
+                width="stretch"
+            )
+
+    with st.form(f"add_{list_name}", border=False, clear_on_submit=True):
+        col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
+
+        with col1:
+            new_value = st.text_input(
+                f"Add to {EDITABLE_LISTS[list_name].lower()}",
+                max_chars=60
+            )
+
+        with col2:
+            submitted = st.form_submit_button(
+                "Add",
+                disabled=not can_edit,
+                width="stretch"
+            )
+
+    if submitted:
+        error = on_add(list_name, new_value)
+
+        if error:
+            st.error(error)
+        else:
+            st.rerun()
+
+    st.caption(
+        "Values in use by an item can't be removed. "
+        "Rename by adding the new value, moving items to it, then removing the old one."
+    )

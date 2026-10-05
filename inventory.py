@@ -14,8 +14,22 @@ FIELD_LABELS = {
     "quantity": "quantity",
     "type": "type",
     "status": "status",
-    "notes": "notes"
+    "notes": "notes",
+    "minimum_quantity": "minimum",
+    "project": "project",
+    "condition": "condition",
+    "last_maintenance": "last maintenance",
+    "maintenance_notes": "maintenance notes"
 }
+
+# Columns added by supabase/2026-10-05_demo_features.sql.
+EXTENDED_FIELDS = [
+    "minimum_quantity",
+    "project",
+    "condition",
+    "last_maintenance",
+    "maintenance_notes"
+]
 
 REQUIRED_FIELDS = {
     "category": "Category",
@@ -46,7 +60,8 @@ def filter_inventory(
     category_filter,
     subsystem_filter,
     location_filter,
-    status_filter="All"
+    status_filter="All",
+    project_filter="All"
 ):
     if category_filter != "All":
         items = [
@@ -70,6 +85,12 @@ def filter_inventory(
         items = [
             item for item in items
             if item["status"] == status_filter
+        ]
+
+    if project_filter != "All":
+        items = [
+            item for item in items
+            if (item.get("project") or UNASSIGNED) == project_filter
         ]
 
     return items
@@ -103,6 +124,72 @@ def apply_subteams(items):
         }
         for item in items
     ]
+
+
+UNASSIGNED = "Unassigned"
+
+
+def auto_status(item):
+    """Low/Out follow the minimum quantity when one is set.
+
+    "In Use" is always a manual choice and is left alone.
+    """
+    minimum = item.get("minimum_quantity")
+    status = item["status"]
+
+    if minimum is None or status == "In Use":
+        return status
+
+    if item["quantity"] == 0:
+        return "Out"
+
+    if item["quantity"] <= minimum:
+        return "Low"
+
+    if status in ("Low", "Out"):
+        return "Available"
+
+    return status
+
+
+def summarize_projects(items, projects):
+    """Item count, units and low/out count per project, in list order."""
+    names = list(projects)
+
+    for item in items:
+        project = item.get("project")
+
+        if project and project not in names:
+            names.append(project)
+
+    names.append(UNASSIGNED)
+
+    summary = []
+
+    for name in names:
+        members = [
+            item for item in items
+            if (item.get("project") or UNASSIGNED) == name
+        ]
+
+        if name == UNASSIGNED and not members:
+            continue
+
+        summary.append({
+            "project": name,
+            "items": len(members),
+            "units": sum(int(item["quantity"] or 0) for item in members),
+            "attention": sum(
+                1 for item in members
+                if item["status"] in ("Low", "Out")
+            )
+        })
+
+    return summary
+
+
+def count_usage(items, field, value):
+    return sum(1 for item in items if item.get(field) == value)
 
 
 def option_index(options, value):

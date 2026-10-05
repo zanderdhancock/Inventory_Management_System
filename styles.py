@@ -122,12 +122,6 @@ def apply_styles():
         }
 
         /* Summary tiles */
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 0.75rem;
-            margin: 0.4rem 0 0.6rem;
-        }
 
         .stat {
             background: rgba(8, 30, 46, 0.72);
@@ -162,7 +156,9 @@ def apply_styles():
 
         /* Cards that hold the table and the activity log */
         .st-key-inventory_card,
-        .st-key-activity_card {
+        .st-key-projects_card,
+        .st-key-activity_card,
+        .st-key-admin_card {
             background: rgba(6, 25, 39, 0.82);
             border-color: rgba(120, 190, 230, 0.14);
             border-radius: 12px;
@@ -184,10 +180,108 @@ def apply_styles():
             font-size: 0.92rem;
         }
 
+        .bar-text {
+            font-size: 0.92rem;
+            line-height: 1.4;
+        }
+
         .row-count {
             color: #8FB0C6;
             font-size: 0.85rem;
             text-align: right;
+        }
+
+
+        /* Summary tiles are clickable: an invisible button covers each one */
+        .st-key-stats [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .st-key-stats [data-testid="stColumn"] {
+            min-width: 150px;
+        }
+
+        [class*="st-key-tile_"] {
+            position: relative;
+            gap: 0;
+        }
+
+        [class*="st-key-tile_"] [data-testid="stElementContainer"]:has(.stButton) {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            width: 100% !important;
+            height: 100%;
+        }
+
+        [class*="st-key-tile_"] .stButton {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Clicks pass through the tile's text to the button underneath */
+        [class*="st-key-tile_"] [data-testid="stElementContainer"]:not(:has(.stButton)) {
+            pointer-events: none;
+        }
+
+        [class*="st-key-tile_"] .stButton button {
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        [class*="st-key-tile_"]:hover .stat {
+            border-color: rgba(120, 190, 230, 0.35);
+            background: rgba(10, 38, 58, 0.85);
+        }
+
+        .stat-active {
+            border-color: rgba(47, 164, 217, 0.65) !important;
+            box-shadow: inset 0 0 0 1px rgba(47, 164, 217, 0.35);
+        }
+
+        /* Keep the table's hover toolbar inside the table header */
+        [data-testid="stElementToolbar"] {
+            top: 0.35rem;
+            right: 0.35rem;
+        }
+
+        /* Projects */
+        .project-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .project-card {
+            background: rgba(10, 36, 54, 0.75);
+            border: 1px solid rgba(120, 190, 230, 0.14);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+        }
+
+        .project-name {
+            font-weight: 600;
+        }
+
+        .project-meta {
+            color: #8FB0C6;
+            font-size: 0.85rem;
+            margin-top: 0.2rem;
+        }
+
+        .project-flag {
+            color: #F3C55C;
+            font-size: 0.8rem;
+            margin-top: 0.35rem;
+        }
+
+        .muted {
+            color: #8FB0C6;
+            font-size: 0.88rem;
         }
 
         /* Tabs */
@@ -222,20 +316,19 @@ def apply_styles():
             margin: 0 auto;
         }
 
-        @media (max-width: 900px) {
-            .stats {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-            }
-        }
 
         @media (max-width: 640px) {
             .topbar-inner {
                 padding: 0.75rem 1rem;
             }
 
-            .stats {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+            .st-key-stats [data-testid="stHorizontalBlock"] {
                 gap: 0.5rem;
+            }
+
+            .st-key-stats [data-testid="stColumn"] {
+                min-width: calc(33% - 0.5rem);
+                flex: 1 1 calc(33% - 0.5rem);
             }
 
             .stat {
@@ -262,8 +355,21 @@ def apply_styles():
                 text-align: left;
             }
 
+            /* Keep Edit / Delete / History on one row on phones */
+            .st-key-bar_actions [data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap;
+                gap: 0.5rem;
+            }
+
+            .st-key-bar_actions [data-testid="stColumn"] {
+                min-width: 0;
+                flex: 1 1 0;
+            }
+
             .st-key-inventory_card,
-            .st-key-activity_card {
+            .st-key-projects_card,
+            .st-key-activity_card,
+            .st-key-admin_card {
                 padding: 0.8rem;
             }
 
