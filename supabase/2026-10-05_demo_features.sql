@@ -1,20 +1,14 @@
--- One-time setup for minimum quantities, projects, condition/maintenance
--- and the editable lists on the Admin tab.
+-- One-time setup for projects and the editable lists on the Admin tab.
 --
 -- Run once in the Supabase SQL editor. Safe to re-run.
--- Only adds columns and a table; existing rows and values are untouched.
+-- Only adds a column and a table; existing rows and values are untouched.
 -- The app works without this script and simply hides these features.
 
 begin;
 
--- New optional fields on each item
+-- Which project each item is allocated to (blank means unassigned)
 alter table inventory_items
-    add column if not exists minimum_quantity integer
-        check (minimum_quantity is null or minimum_quantity >= 0),
-    add column if not exists project text,
-    add column if not exists condition text,
-    add column if not exists last_maintenance date,
-    add column if not exists maintenance_notes text;
+    add column if not exists project text;
 
 -- Lists edited on the Admin tab
 create table if not exists inventory_options (

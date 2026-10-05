@@ -131,10 +131,7 @@ def supports_extended_fields():
         (
             supabase
             .table("inventory_items")
-            .select(
-                "minimum_quantity,project,condition,"
-                "last_maintenance,maintenance_notes"
-            )
+            .select("project")
             .limit(1)
             .execute()
         )

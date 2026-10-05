@@ -92,7 +92,6 @@ from inventory import (
     find_duplicate_item,
     validate_item,
     apply_subteams,
-    auto_status,
     UNASSIGNED
 )
 
@@ -178,9 +177,6 @@ def finish_change(message):
 def save_new_item(new_item):
     error = validate_item(new_item)
 
-    if extended:
-        new_item["status"] = auto_status(new_item)
-
     if error:
         return error
 
@@ -221,9 +217,6 @@ def save_new_item(new_item):
 
 def save_item_changes(old_item, updated_data):
     error = validate_item(updated_data)
-
-    if extended:
-        updated_data["status"] = auto_status(updated_data)
 
     if error:
         return error

@@ -72,13 +72,6 @@ PROJECTS = [
     "Spares"
 ]
 
-CONDITIONS = [
-    "New",
-    "Good",
-    "Fair",
-    "Needs repair",
-    "Retired"
-]
 
 
 # --------------------------------------------------

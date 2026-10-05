@@ -15,20 +15,12 @@ FIELD_LABELS = {
     "type": "type",
     "status": "status",
     "notes": "notes",
-    "minimum_quantity": "minimum",
-    "project": "project",
-    "condition": "condition",
-    "last_maintenance": "last maintenance",
-    "maintenance_notes": "maintenance notes"
+    "project": "project"
 }
 
 # Columns added by supabase/2026-10-05_demo_features.sql.
 EXTENDED_FIELDS = [
-    "minimum_quantity",
-    "project",
-    "condition",
-    "last_maintenance",
-    "maintenance_notes"
+    "project"
 ]
 
 REQUIRED_FIELDS = {
@@ -127,29 +119,6 @@ def apply_subteams(items):
 
 
 UNASSIGNED = "Unassigned"
-
-
-def auto_status(item):
-    """Low/Out follow the minimum quantity when one is set.
-
-    "In Use" is always a manual choice and is left alone.
-    """
-    minimum = item.get("minimum_quantity")
-    status = item["status"]
-
-    if minimum is None or status == "In Use":
-        return status
-
-    if item["quantity"] == 0:
-        return "Out"
-
-    if item["quantity"] <= minimum:
-        return "Low"
-
-    if status in ("Low", "Out"):
-        return "Available"
-
-    return status
 
 
 def summarize_projects(items, projects):

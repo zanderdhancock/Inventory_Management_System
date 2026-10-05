@@ -14,9 +14,7 @@ Team inventory was spread across members' dorms, homes and the club storage room
 
 - **Inventory list** with search, filters (category, subteam, location, project) and quick status filters. Clicking a summary tile such as "Low stock" filters the list to those items.
 - **Add, edit and delete in modals.** Tick a row and choose Edit, Delete or History. Every change asks who is making it.
-- **Automatic low stock.** Give an item a minimum quantity, and it's marked Low when it falls to that level and Out at zero.
 - **Projects.** Allocate items to the ROV build, competition, pool testing and other projects, and see what each one holds.
-- **Condition and maintenance.** Record each item's condition, its last maintenance date and notes.
 - **Full activity history** with search, member, action and date filters, plus CSV export. Every add, edit and delete is kept.
 - **Admin tab** for members, locations, categories, subteams and projects. A value that is still in use can't be removed.
 - **Works on phones.** The layout adapts for checking stock at the pool or in the lab.
@@ -82,9 +80,9 @@ Two one-time SQL scripts live in `supabase/`. Run them in the Supabase SQL edito
 | Script | What it does |
 | --- | --- |
 | `2026-10-05_subsystems_to_subteams.sql` | Moves old subsystem names onto the five subteams |
-| `2026-10-05_demo_features.sql` | Adds minimum quantity, project, condition and maintenance columns, plus the `inventory_options` table for the Admin tab |
+| `2026-10-05_demo_features.sql` | Adds a `project` column to items, plus the `inventory_options` table for the Admin tab |
 
-The app runs without the second script. Projects, minimum quantities, condition and the Admin tab simply stay hidden until it has been run.
+The app runs without the second script. Projects and the Admin tab simply stay hidden until it has been run.
 
 ## Testing
 

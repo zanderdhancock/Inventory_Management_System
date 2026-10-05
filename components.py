@@ -2,7 +2,6 @@ import base64
 from html import escape
 import csv
 import io
-from datetime import date
 
 import pandas as pd
 import streamlit as st
@@ -12,7 +11,6 @@ import options
 from options import (
     ITEM_TYPES,
     STATUSES,
-    CONDITIONS,
     EDITABLE_LISTS,
     LIST_FIELDS
 )
@@ -340,10 +338,7 @@ def display_inventory(items, table_key):
         }
 
         if FEATURES["extended"]:
-            minimum = item.get("minimum_quantity")
-            row["Min"] = "" if minimum is None else str(minimum)
             row["Project"] = item.get("project") or ""
-            row["Condition"] = item.get("condition") or ""
 
         row["Category"] = item["category"]
         row["Type"] = item["type"]
@@ -363,11 +358,6 @@ def display_inventory(items, table_key):
         column_config={
             "Item": st.column_config.TextColumn("Item", width="medium", pinned=True),
             "Qty": st.column_config.NumberColumn("Qty", width="small", format="%d"),
-            "Min": st.column_config.TextColumn(
-                "Min",
-                width="small",
-                help="Minimum quantity. At or below it the item is marked Low."
-            ),
             "Status": st.column_config.TextColumn("Status", width="small"),
             "Notes": st.column_config.TextColumn("Notes", width="large")
         }
@@ -466,16 +456,6 @@ def display_selection_bar(selected_item, can_edit, shown, total):
 # ITEM MODALS
 # --------------------------------------------------
 
-def _parse_date(value):
-    if not value:
-        return None
-
-    try:
-        return date.fromisoformat(str(value)[:10])
-    except ValueError:
-        return None
-
-
 def _item_fields(item=None):
     item = item or {}
     categories = options.get("categories")
@@ -509,11 +489,7 @@ def _item_fields(item=None):
         status = st.selectbox(
             "Status",
             STATUSES,
-            index=option_index(STATUSES, item.get("status", STATUSES[0])),
-            help=(
-                "With a minimum quantity set, Low and Out update on their "
-                "own. In Use is always manual."
-            ) if extended else None
+            index=option_index(STATUSES, item.get("status", STATUSES[0]))
         )
 
     with col2:
@@ -540,63 +516,14 @@ def _item_fields(item=None):
     data = {}
 
     if extended:
-        col1, col2 = st.columns(2)
+        project = st.selectbox(
+            "Project",
+            projects,
+            index=option_index(projects, item.get("project")),
+            placeholder=UNASSIGNED
+        )
 
-        with col1:
-            project = st.selectbox(
-                "Project",
-                projects,
-                index=option_index(projects, item.get("project")),
-                placeholder=UNASSIGNED
-            )
-
-        with col2:
-            minimum = st.number_input(
-                "Minimum quantity",
-                min_value=0,
-                value=item.get("minimum_quantity"),
-                step=1,
-                placeholder="No minimum",
-                help="When quantity drops to this or below, the item is marked Low."
-            )
-
-        with st.expander(
-            "Condition and maintenance",
-            expanded=bool(item.get("condition") or item.get("last_maintenance"))
-        ):
-            col1, col2 = st.columns(2)
-
-            with col1:
-                condition = st.selectbox(
-                    "Condition",
-                    CONDITIONS,
-                    index=option_index(CONDITIONS, item.get("condition")),
-                    placeholder="Not recorded"
-                )
-
-            with col2:
-                last_maintenance = st.date_input(
-                    "Last maintenance",
-                    value=_parse_date(item.get("last_maintenance")),
-                    format="MM/DD/YYYY"
-                )
-
-            maintenance_notes = st.text_area(
-                "Maintenance notes",
-                value=item.get("maintenance_notes") or "",
-                max_chars=500,
-                height=80
-            )
-
-        data = {
-            "project": project,
-            "minimum_quantity": None if minimum is None else int(minimum),
-            "condition": condition,
-            "last_maintenance": (
-                last_maintenance.isoformat() if last_maintenance else None
-            ),
-            "maintenance_notes": maintenance_notes.strip() or None
-        }
+        data = {"project": project}
 
     notes = st.text_area(
         "Notes",
@@ -896,8 +823,7 @@ def display_projects(items):
             "Qty": item["quantity"],
             "Status": item["status"],
             "Subteam": item["subsystem"],
-            "Location": item["location"],
-            "Condition": item.get("condition") or ""
+            "Location": item["location"]
         }
         for item in members
     ])
