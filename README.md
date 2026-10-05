@@ -16,14 +16,16 @@ Team inventory was spread across members' dorms, homes and the club storage room
 - **Add, edit and delete in modals.** Tick a row and choose Edit, Delete or History. Every change asks who is making it.
 - **Projects.** Allocate items to the ROV build, competition, pool testing and other projects, and see what each one holds.
 - **Full activity history** with search, member, action and date filters, plus CSV export. Every add, edit and delete is kept.
-- **Dropdown lists** for members, locations, categories, subteams and projects live in `options.py`, so changing them is a one-line edit.
+- **Admin tab** for adding and removing members, locations, categories, subteams and projects, unlocked with a leaders-only code. A value that is still in use can't be removed.
 - **Works on phones.** The layout adapts for checking stock at the pool or in the lab.
 
 | Edit an item | Projects |
 | --- | --- |
 | ![Edit item](docs/screenshots/edit-item.png) | ![Projects](docs/screenshots/projects.png) |
 
-![Activity history](docs/screenshots/activity.png)
+| Activity history | Admin |
+| --- | --- |
+| ![Activity](docs/screenshots/activity.png) | ![Admin](docs/screenshots/admin.png) |
 
 <p align="center"><img src="docs/screenshots/mobile.png" alt="Mobile view" width="300"></p>
 
@@ -37,17 +39,19 @@ Streamlit app (Python, Streamlit Community Cloud)
    ├── components.py   UI: header, table, modals, tabs
    ├── inventory.py    search, filters, validation, history logic
    ├── database.py     Supabase queries
-   ├── options.py      dropdown lists (members, locations, projects...)
+   ├── options.py      default lists, replaced by the Admin tab's lists once stored
    └── styles.py       ocean theme
    │
 Supabase (PostgreSQL)
    ├── inventory_items
-   └── inventory_history
+   ├── inventory_history
+   └── inventory_options
 ```
 
 ## Security model
 
 - The app is gated by a team access code (`APP_ACCESS_CODE`), checked with a constant-time comparison.
+- The Admin tab needs a second, leaders-only code (`ADMIN_ACCESS_CODE`). Without it set, the tab stays locked.
 - The app talks to Supabase only from the server, using the secret key (`SUPABASE_SECRET_KEY`). The key never reaches the browser.
 - Row Level Security is enabled on every table, with no anonymous policies, so the public API key can't read or write data.
 - Every change is attributed to a team member and kept in `inventory_history`.
@@ -66,20 +70,22 @@ streamlit run main.py
 SUPABASE_URL=...
 SUPABASE_SECRET_KEY=...
 APP_ACCESS_CODE=...
+ADMIN_ACCESS_CODE=...
 ```
 
-When deployed, the same three values go in Streamlit Secrets.
+When deployed, the same values go in Streamlit Secrets.
 
 ## Database setup
 
-Two one-time SQL scripts live in `supabase/`. Run them in the Supabase SQL editor; both are safe to re-run.
+Three one-time SQL scripts live in `supabase/`. Run them in the Supabase SQL editor; all are safe to re-run.
 
 | Script | What it does |
 | --- | --- |
 | `2026-10-05_subsystems_to_subteams.sql` | Moves old subsystem names onto the five subteams |
 | `2026-10-05_add_project_column.sql` | Adds a `project` column to items |
+| `2026-10-05_admin_lists.sql` | Adds the `inventory_options` table behind the Admin tab |
 
-The app runs without the second script. Projects simply stay hidden until it has been run.
+The app runs without the last two scripts. Projects stay hidden until the first has been run, and the Admin tab shows a setup notice until the second has.
 
 ## Testing
 

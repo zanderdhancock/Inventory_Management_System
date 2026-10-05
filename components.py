@@ -10,7 +10,9 @@ import options
 
 from options import (
     ITEM_TYPES,
-    STATUSES
+    STATUSES,
+    EDITABLE_LISTS,
+    LIST_FIELDS
 )
 
 from inventory import (
@@ -18,7 +20,8 @@ from inventory import (
     option_index,
     format_timestamp,
     filter_history,
-    summarize_projects
+    summarize_projects,
+    count_usage
 )
 
 
@@ -766,7 +769,7 @@ def _plural(count, word):
 
 def display_projects(items):
     if not FEATURES["extended"]:
-        _setup_notice("Project allocation")
+        _setup_notice("Project allocation", "2026-10-05_add_project_column.sql")
         return
 
     summary = summarize_projects(items, options.get("projects"))
@@ -841,13 +844,119 @@ def display_projects(items):
 
 
 # --------------------------------------------------
-# SETUP NOTICE
+# ADMIN
 # --------------------------------------------------
 
-def _setup_notice(feature):
+def _setup_notice(feature, script):
     st.info(
         f"{feature} turns on after the one-time database setup in "
-        "`supabase/2026-10-05_add_project_column.sql` has been run in Supabase."
+        f"`supabase/{script}` has been run in Supabase."
+    )
+
+
+def _lock_admin():
+    st.session_state.admin_unlocked = False
+
+
+def display_admin_gate(configured):
+    """Ask for the leaders' admin code. Returns the entered code on submit."""
+    if not configured:
+        st.info(
+            "The Admin tab is locked. Add ADMIN_ACCESS_CODE to `.env` or "
+            "Streamlit Secrets to let leaders unlock it."
+        )
+        return None
+
+    st.caption("Team leaders can change members, locations, categories, subteams and projects here.")
+
+    with st.form("admin_gate", border=False):
+        col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
+
+        with col1:
+            code = st.text_input("Admin code", type="password")
+
+        with col2:
+            submitted = st.form_submit_button("Unlock", width="stretch")
+
+    return code if submitted else None
+
+
+def display_admin(items, can_edit, enabled, on_add, on_remove):
+    if not enabled:
+        _setup_notice("Editing lists", "2026-10-05_admin_lists.sql")
+        return
+
+    st.button("Lock admin", key="lock_admin", type="tertiary", icon=":material/lock:", on_click=_lock_admin)
+
+    if not can_edit:
+        st.caption("Choose your name at the top to change these lists.")
+
+    list_name = st.segmented_control(
+        "List",
+        list(EDITABLE_LISTS),
+        format_func=EDITABLE_LISTS.get,
+        default="members",
+        key="admin_list"
+    ) or "members"
+
+    values = options.get(list_name)
+    field = LIST_FIELDS.get(list_name)
+
+    for value in values:
+        used = count_usage(items, field, value) if field else 0
+
+        col1, col2 = st.columns([5, 1], vertical_alignment="center")
+
+        with col1:
+            usage = f" · used by {used} item{'s' if used != 1 else ''}" if used else ""
+            st.html(f"<div class='bar-text'>{escape(value)}<span class='muted'>{usage}</span></div>")
+
+        with col2:
+            if used:
+                reason = "In use, so it can't be removed"
+            elif len(values) == 1:
+                reason = "Each list needs at least one value"
+            else:
+                reason = None
+
+            st.button(
+                "Remove",
+                key=f"remove_{list_name}_{value}",
+                type="tertiary",
+                disabled=not can_edit or reason is not None,
+                help=reason,
+                on_click=on_remove,
+                args=(list_name, value),
+                width="stretch"
+            )
+
+    with st.form(f"add_{list_name}", border=False, clear_on_submit=True):
+        col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
+
+        with col1:
+            new_value = st.text_input(
+                f"Add to {EDITABLE_LISTS[list_name].lower()}",
+                max_chars=60
+            )
+
+        with col2:
+            submitted = st.form_submit_button(
+                "Add",
+                disabled=not can_edit,
+                width="stretch"
+            )
+
+    if submitted:
+        error = on_add(list_name, new_value)
+
+        if error:
+            st.error(error)
+        else:
+            st.rerun()
+
+    st.caption(
+        "Values in use by an item can't be removed. "
+        "Rename by adding the new value, moving items to it, then removing the old one."
     )
 
 

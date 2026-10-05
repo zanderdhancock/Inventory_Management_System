@@ -1,5 +1,6 @@
-# Lists used by the dropdowns. Edit them here to add or rename members,
-# locations, categories, subteams or projects.
+# Defaults for every list. Members, locations, categories, subteams and
+# projects can be edited on the Admin tab once the inventory_options table
+# exists; until then these defaults are used.
 
 CATEGORIES = [
     "Fasteners",
@@ -72,12 +73,27 @@ PROJECTS = [
 ]
 
 
-
 # --------------------------------------------------
-# LOOKUP
+# EDITABLE LISTS
 # --------------------------------------------------
 
-LISTS = {
+EDITABLE_LISTS = {
+    "members": "Members",
+    "locations": "Locations",
+    "categories": "Categories",
+    "subteams": "Subteams",
+    "projects": "Projects"
+}
+
+# The inventory_items column each list's values are stored in.
+LIST_FIELDS = {
+    "locations": "location",
+    "categories": "category",
+    "subteams": "subsystem",
+    "projects": "project"
+}
+
+DEFAULTS = {
     "members": MEMBERS,
     "locations": LOCATIONS,
     "categories": CATEGORIES,
@@ -85,6 +101,19 @@ LISTS = {
     "projects": PROJECTS
 }
 
+_active = {name: list(values) for name, values in DEFAULTS.items()}
+
+
+def load(rows):
+    """Replace defaults with lists stored in Supabase, where present."""
+    stored = {}
+
+    for row in sorted(rows or [], key=lambda r: (r["position"], r["value"])):
+        stored.setdefault(row["list_name"], []).append(row["value"])
+
+    for name, defaults in DEFAULTS.items():
+        _active[name] = stored.get(name) or list(defaults)
+
 
 def get(name):
-    return LISTS[name]
+    return _active[name]
