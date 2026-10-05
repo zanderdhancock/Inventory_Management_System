@@ -157,6 +157,10 @@ def summarize_projects(items, projects):
     return summary
 
 
+def count_usage(items, field, value):
+    return sum(1 for item in items if item.get(field) == value)
+
+
 def option_index(options, value):
     # Stored values that are no longer valid options (for example an old
     # subsystem name) leave the selectbox empty instead of crashing.
