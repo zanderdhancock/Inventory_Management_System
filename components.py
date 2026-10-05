@@ -1003,3 +1003,38 @@ def display_admin(items, can_edit, enabled, on_add, on_remove):
         "Values in use by an item can't be removed. "
         "Rename by adding the new value, moving items to it, then removing the old one."
     )
+
+
+# --------------------------------------------------
+# ABOUT
+# --------------------------------------------------
+
+REPO_URL = "https://github.com/zanderdhancock/Inventory_Management_System"
+
+
+def display_footer():
+    st.html(
+        f"""
+        <footer class="app-footer">
+            <div class="footer-brand">
+                {LOGO_SVG}
+                <div>
+                    <div class="footer-title">Oceanus Inventory</div>
+                    <div class="footer-text">
+                        Built for the Oceanus underwater robotics team at Texas A&amp;M.
+                    </div>
+                </div>
+            </div>
+            <div class="footer-credits">
+                <div>
+                    Designed and developed by
+                    <a href="https://github.com/zanderdhancock" target="_blank">Zander</a>
+                </div>
+                <div class="footer-text">
+                    Streamlit · Supabase ·
+                    <a href="{REPO_URL}" target="_blank">Source on GitHub</a>
+                </div>
+            </div>
+        </footer>
+        """
+    )

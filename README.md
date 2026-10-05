@@ -99,6 +99,10 @@ GitHub Actions runs the tests on every push to `main` and on every pull request.
 
 Pushing to `main` redeploys the app on Streamlit Community Cloud automatically.
 
+## Credits
+
+Designed and developed by [Zander](https://github.com/zanderdhancock) for the Oceanus underwater robotics team at Texas A&M. The same credit appears in the app's footer.
+
 ## Tech stack
 
 Python 3.11, Streamlit 1.64, Supabase (PostgreSQL), pandas, pytest and GitHub Actions.

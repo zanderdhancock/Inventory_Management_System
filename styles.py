@@ -284,6 +284,52 @@ def apply_styles():
             font-size: 0.88rem;
         }
 
+        /* Credits footer */
+        .app-footer {
+            margin-top: 3rem;
+            padding: 1.25rem 0 0.5rem;
+            border-top: 1px solid rgba(120, 190, 230, 0.12);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 1rem 2rem;
+            font-size: 0.85rem;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+        }
+
+        .footer-title {
+            font-weight: 600;
+        }
+
+        .footer-text {
+            color: #8FB0C6;
+        }
+
+        .footer-credits {
+            text-align: right;
+            line-height: 1.6;
+        }
+
+        .app-footer a {
+            color: #6FC3EC;
+            text-decoration: none;
+        }
+
+        .app-footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 640px) {
+            .footer-credits {
+                text-align: left;
+            }
+        }
+
         /* Tabs */
         [data-baseweb="tab-list"] {
             gap: 1.25rem;

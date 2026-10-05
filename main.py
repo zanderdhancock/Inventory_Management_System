@@ -109,6 +109,7 @@ from components import (
     item_history_dialog,
     display_projects,
     display_admin,
+    display_footer,
     FEATURES
 )
 
@@ -446,3 +447,5 @@ with admin_tab, st.container(border=True, key="admin_card"):
         add_list_value,
         remove_list_value
     )
+
+display_footer()
