@@ -1,402 +1,427 @@
+import base64
+
 import streamlit as st
 
 
+# Layered swells behind the page heading.
+_WAVES = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 360" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.35" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="m"><rect width="1440" height="360" fill="url(#fade)"/></mask>
+  </defs>
+  <g mask="url(#m)">
+    <path fill="#1C6C94" fill-opacity="0.22"
+          d="M0 150 C 180 110 360 190 540 160 S 900 100 1080 140 S 1320 190 1440 150 V360 H0Z"/>
+    <path fill="#14557A" fill-opacity="0.28"
+          d="M0 210 C 200 170 380 250 600 215 S 960 160 1160 205 S 1360 245 1440 220 V360 H0Z"/>
+    <path fill="#0B3A57" fill-opacity="0.45"
+          d="M0 270 C 220 240 420 300 640 275 S 1000 230 1220 265 S 1400 290 1440 280 V360 H0Z"/>
+  </g>
+</svg>
+"""
+
+_WAVES_URI = (
+    "data:image/svg+xml;base64,"
+    + base64.b64encode(_WAVES.encode()).decode()
+)
+
+
+# Base colors live in .streamlit/config.toml. This file adds the ocean
+# backdrop, brand bar, cards and summary tiles the theme can't express.
 def apply_styles():
-    st.markdown(
+    st.html(
         """
         <style>
 
-        /* Main page */
+        /* Deep-water backdrop: light from the surface, swells, then dark */
         .stApp {
             background:
                 radial-gradient(
-                    circle at top right,
-                    rgba(0, 180, 216, 0.08),
-                    transparent 35%
+                    ellipse 80% 45% at 50% -5%,
+                    rgba(110, 200, 240, 0.16),
+                    transparent 70%
                 ),
-                #07111F;
+                url("WAVES_URI") top 40px center / 100% 360px no-repeat,
+                linear-gradient(
+                    180deg,
+                    #0B3652 0%,
+                    #082A40 280px,
+                    #061C2C 620px,
+                    #04111B 100%
+                );
+            background-attachment: scroll, scroll, scroll;
         }
 
-        /* Main content width */
         .block-container {
-            max-width: 1400px;
-            padding-top: 4.25rem;
+            max-width: 1180px;
+            padding-top: 0;
             padding-bottom: 4rem;
         }
 
-        /* Containers / cards */
-        [data-testid="stVerticalBlockBorderWrapper"] {
-            background: rgba(14, 27, 43, 0.72);
-            border: 1px solid rgba(0, 180, 216, 0.20);
-            border-radius: 14px;
+        [data-testid="stHeader"] {
+            background: transparent;
+            height: 3.5rem;
         }
 
-        /* Buttons */
-        .stButton > button,
-        .stFormSubmitButton > button {
-            border-radius: 9px;
-            border: 1px solid rgba(0, 180, 216, 0.45);
-            font-weight: 600;
+
+        /* Full-width brand bar */
+        .topbar {
+            margin: 0 calc(50% - 50vw) 0;
+            background: rgba(3, 16, 26, 0.55);
+            border-bottom: 1px solid rgba(140, 200, 235, 0.10);
+            backdrop-filter: blur(6px);
         }
 
-        .stButton > button:hover,
-        .stFormSubmitButton > button:hover {
-            border-color: #00B4D8;
-            box-shadow: 0 0 14px rgba(0, 180, 216, 0.18);
+        .topbar-inner {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0.85rem 5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
         }
 
-        /* Inputs */
-        [data-baseweb="input"] > div,
-        [data-baseweb="select"] > div,
-        textarea {
-            border-radius: 9px !important;
-        }
-
-        /* Horizontal rules */
-        hr {
-            border-color: rgba(0, 180, 216, 0.16);
-        }
-
-        /* Oceanus hero */
-        .oceanus-hero {
-            margin-top: 0.8rem;
-            margin-bottom: 1.6rem;
-            padding: 1.4rem 1.6rem;
-            background: linear-gradient(
-                135deg,
-                rgba(0, 180, 216, 0.10),
-                rgba(14, 27, 43, 0.72)
-            );
-            border: 1px solid rgba(0, 180, 216, 0.22);
-            border-radius: 16px;
-            overflow: visible;
-        }
-
-        .oceanus-kicker {
-            font-size: 0.72rem;
+        .brand-name {
+            color: #FFFFFF;
             font-weight: 700;
-            letter-spacing: 0.16em;
-            color: #48CAE4;
-            margin-bottom: 0.35rem;
+            font-size: 1.05rem;
+            letter-spacing: 0.01em;
         }
 
-        .oceanus-title {
-            font-size: 2.2rem;
-            font-weight: 700;
-            line-height: 1.1;
-            color: #F1FBFF;
+        .brand-divider {
+            width: 1px;
+            height: 1.1rem;
+            background: rgba(255,255,255,0.25);
         }
 
-        .oceanus-subtitle {
-            margin-top: 0.45rem;
-            color: #A8C7D8;
+        .brand-product {
+            color: #8FB4CC;
             font-size: 0.95rem;
         }
 
-        /* Dashboard metric cards */
-        .metric-card {
-            background:
-                linear-gradient(
-                    145deg,
-                    rgba(14, 27, 43, 0.96),
-                    rgba(7, 17, 31, 0.96)
-                );
-            border: 1px solid rgba(0, 180, 216, 0.22);
-            border-radius: 16px;
-            padding: 1.15rem 1.25rem;
-            min-height: 115px;
-            transition: all 0.2s ease;
+        /* Page heading */
+        .page-heading {
+            padding: 1.9rem 0 0.2rem;
         }
 
-        .metric-card:hover {
-            transform: translateY(-2px);
-            border-color: rgba(72, 202, 228, 0.55);
-            box-shadow: 0 8px 28px rgba(0, 180, 216, 0.08);
-        }
-
-        .metric-label {
-            color: #8FAFC1;
-            font-size: 0.78rem;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-        }
-
-        .metric-value {
-            color: #F1FBFF;
-            font-size: 2rem;
-            font-weight: 750;
-            line-height: 1.1;
-            margin-top: 0.45rem;
-        }
-
-        .metric-accent {
-            width: 28px;
-            height: 3px;
-            background: #00B4D8;
-            border-radius: 10px;
-            margin-top: 0.7rem;
-        }
-
-        /* Expanders */
-        [data-testid="stExpander"] {
-            background:
-                linear-gradient(
-                    145deg,
-                    rgba(14, 27, 43, 0.92),
-                    rgba(7, 17, 31, 0.92)
-                );
-            border: 1px solid rgba(0, 180, 216, 0.18);
-            border-radius: 14px;
-            overflow: hidden;
-            margin-bottom: 0.7rem;
-        }
-
-        [data-testid="stExpander"] details > summary {
-            padding: 0.9rem 1rem;
-            font-weight: 650;
-            color: #EAF7FF;
-            transition: all 0.2s ease;
-        }
-
-        [data-testid="stExpander"] details > summary:hover {
-            background: rgba(0, 180, 216, 0.06);
-            color: #48CAE4;
-        }
-
-        [data-testid="stExpander"] details[open] > summary {
-            border-bottom: 1px solid rgba(0, 180, 216, 0.14);
-        }
-
-        /* Forms */
-        [data-testid="stForm"] {
-            border: none;
-            padding: 0.3rem 0 0 0;
-        }
-
-        [data-testid="stTextInput"] input,
-        [data-testid="stNumberInput"] input,
-        [data-testid="stTextArea"] textarea {
-            background-color: rgba(10, 24, 39, 0.95);
-            border: 1px solid rgba(143, 175, 193, 0.16);
-        }
-
-        [data-testid="stTextInput"] input:focus,
-        [data-testid="stNumberInput"] input:focus,
-        [data-testid="stTextArea"] textarea:focus {
-            border-color: #00B4D8;
-            box-shadow: 0 0 0 1px rgba(0, 180, 216, 0.20);
-        }
-
-        [data-testid="stFormSubmitButton"] button {
-            background:
-                linear-gradient(
-                    135deg,
-                    #0077B6,
-                    #0096C7
-                );
-            color: white;
-            border: 1px solid rgba(72, 202, 228, 0.40);
-            min-height: 2.6rem;
-        }
-
-        [data-testid="stFormSubmitButton"] button:hover {
-            background:
-                linear-gradient(
-                    135deg,
-                    #0096C7,
-                    #00B4D8
-                );
-            color: white;
-            transform: translateY(-1px);
-        }
-
-        /* Inventory section */
-        .inventory-section-label,
-        .activity-section-label {
-            margin-top: 2rem;
-            margin-bottom: 0.8rem;
-            color: #8FAFC1;
-            font-size: 0.72rem;
+        .page-title {
+            font-size: 1.75rem;
             font-weight: 700;
-            letter-spacing: 0.14em;
+            letter-spacing: -0.015em;
+            line-height: 1.2;
         }
 
-        [data-testid="stTextInput"] input {
-            background: rgba(10, 24, 39, 0.95);
-            border: 1px solid rgba(0, 180, 216, 0.16);
+        .page-subtitle {
+            color: #93B3C8;
+            font-size: 0.95rem;
+            margin-top: 0.3rem;
+        }
+
+        /* Summary tiles */
+
+        .stat {
+            background: rgba(8, 30, 46, 0.72);
+            border: 1px solid rgba(120, 190, 230, 0.14);
             border-radius: 10px;
+            padding: 0.85rem 1rem;
+            backdrop-filter: blur(6px);
         }
 
-        [data-testid="stTextInput"] input:hover {
-            border-color: rgba(72, 202, 228, 0.35);
-        }
-
-        [data-testid="stSelectbox"] > div > div {
-            background: rgba(10, 24, 39, 0.95);
-            border-radius: 10px;
-        }
-
-        [data-testid="stDataFrame"] {
-            background: rgba(7, 17, 31, 0.72);
-            border: 1px solid rgba(0, 180, 216, 0.18);
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-        [data-testid="stWidgetLabel"] p {
-            color: #A8C7D8;
-            font-weight: 550;
-        }
-
-        /* Activity cards */
-        .activity-card {
-            background:
-                linear-gradient(
-                    145deg,
-                    rgba(14, 27, 43, 0.92),
-                    rgba(7, 17, 31, 0.92)
-                );
-            border: 1px solid rgba(0, 180, 216, 0.16);
-            border-radius: 14px;
-            padding: 0.95rem 1.1rem;
-            margin-bottom: 0.65rem;
-        }
-
-        .activity-card:hover {
-            border-color: rgba(72, 202, 228, 0.35);
-        }
-
-        .activity-top {
+        .stat-label {
+            color: #8FB0C6;
+            font-size: 0.8rem;
+            font-weight: 500;
             display: flex;
-            justify-content: space-between;
-            gap: 1rem;
             align-items: center;
+            gap: 0.4rem;
         }
 
-        .activity-item {
-            color: #F1FBFF;
-            font-size: 1rem;
-            font-weight: 650;
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            margin-top: 0.15rem;
         }
 
-        .activity-action {
-            color: #48CAE4;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.08em;
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
         }
 
-        .activity-meta {
-            margin-top: 0.35rem;
-            color: #8FAFC1;
-            font-size: 0.82rem;
+        /* Cards that hold the table and the activity log */
+        .st-key-inventory_card,
+        .st-key-projects_card,
+        .st-key-activity_card {
+            background: rgba(6, 25, 39, 0.82);
+            border-color: rgba(120, 190, 230, 0.14);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(8px);
+            padding: 1.1rem 1.2rem 1.2rem;
         }
 
-        .activity-details {
-            margin-top: 0.35rem;
-            color: #B8D1DF;
-            font-size: 0.86rem;
+        /* Bar above the table */
+        .st-key-selection_bar {
+            background: rgba(47, 164, 217, 0.08);
+            border-color: rgba(47, 164, 217, 0.28);
+            padding: 0.5rem 0.85rem;
+            margin-bottom: 1rem;
         }
 
-        /* Access screen */
-        .access-shell {
-            max-width: 520px;
-            margin: 10vh auto 0 auto;
-            padding: 2rem;
-            background:
-                linear-gradient(
-                    145deg,
-                    rgba(14, 27, 43, 0.96),
-                    rgba(7, 17, 31, 0.96)
-                );
-            border: 1px solid rgba(0, 180, 216, 0.22);
-            border-radius: 18px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
-        }
-
-        .access-kicker {
-            color: #48CAE4;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.16em;
-            margin-bottom: 0.4rem;
-        }
-
-        .access-title {
-            color: #F1FBFF;
-            font-size: 2rem;
-            font-weight: 700;
-            line-height: 1.1;
-        }
-
-        .access-subtitle {
-            color: #8FAFC1;
+        .st-key-selection_bar p {
+            margin: 0;
             font-size: 0.92rem;
-            margin-top: 0.5rem;
-            margin-bottom: 1.4rem;
         }
 
-        /* Mobile responsiveness */
-        @media (max-width: 768px) {
+        .bar-text {
+            font-size: 0.92rem;
+            line-height: 1.4;
+        }
 
-            .block-container {
-                padding-top: 3rem;
-                padding-left: 1rem;
-                padding-right: 1rem;
+        .row-count {
+            color: #8FB0C6;
+            font-size: 0.85rem;
+            text-align: right;
+        }
+
+
+        /* Summary tiles are clickable: an invisible button covers each one */
+        .st-key-stats [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .st-key-stats [data-testid="stColumn"] {
+            min-width: 150px;
+        }
+
+        [class*="st-key-tile_"] {
+            position: relative;
+            gap: 0;
+        }
+
+        [class*="st-key-tile_"] [data-testid="stElementContainer"]:has(.stButton) {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            width: 100% !important;
+            height: 100%;
+        }
+
+        [class*="st-key-tile_"] .stButton {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Clicks pass through the tile's text to the button underneath */
+        [class*="st-key-tile_"] [data-testid="stElementContainer"]:not(:has(.stButton)) {
+            pointer-events: none;
+        }
+
+        [class*="st-key-tile_"] .stButton button {
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        [class*="st-key-tile_"]:hover .stat {
+            border-color: rgba(120, 190, 230, 0.35);
+            background: rgba(10, 38, 58, 0.85);
+        }
+
+        .stat-active {
+            border-color: rgba(47, 164, 217, 0.65) !important;
+            box-shadow: inset 0 0 0 1px rgba(47, 164, 217, 0.35);
+        }
+
+        /* Keep the table's hover toolbar inside the table header */
+        [data-testid="stElementToolbar"] {
+            top: 0.35rem;
+            right: 0.35rem;
+        }
+
+        /* Projects */
+        .project-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .project-card {
+            background: rgba(10, 36, 54, 0.75);
+            border: 1px solid rgba(120, 190, 230, 0.14);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+        }
+
+        .project-name {
+            font-weight: 600;
+        }
+
+        .project-meta {
+            color: #8FB0C6;
+            font-size: 0.85rem;
+            margin-top: 0.2rem;
+        }
+
+        .project-flag {
+            color: #F3C55C;
+            font-size: 0.8rem;
+            margin-top: 0.35rem;
+        }
+
+        .muted {
+            color: #8FB0C6;
+            font-size: 0.88rem;
+        }
+
+        /* Credits footer */
+        .app-footer {
+            margin-top: 3rem;
+            padding: 1.25rem 0 0.5rem;
+            border-top: 1px solid rgba(120, 190, 230, 0.12);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 1rem 2rem;
+            font-size: 0.85rem;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+        }
+
+        .footer-title {
+            font-weight: 600;
+        }
+
+        .footer-text {
+            color: #8FB0C6;
+        }
+
+        .footer-credits {
+            text-align: right;
+            line-height: 1.6;
+        }
+
+        .app-footer a {
+            color: #6FC3EC;
+            text-decoration: none;
+        }
+
+        .app-footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 640px) {
+            .footer-credits {
+                text-align: left;
+            }
+        }
+
+        /* Tabs */
+        [data-baseweb="tab-list"] {
+            gap: 1.25rem;
+        }
+
+        [data-baseweb="tab"] p {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        /* Sign-in */
+        .access-header {
+            margin: 10vh 0 1.25rem;
+            text-align: center;
+        }
+
+        .access-header .page-title {
+            margin-top: 0.9rem;
+        }
+
+        .logo {
+            width: 26px;
+            height: 26px;
+            display: block;
+        }
+
+        .access-header .logo {
+            width: 44px;
+            height: 44px;
+            margin: 0 auto;
+        }
+
+
+        @media (max-width: 640px) {
+            .topbar-inner {
+                padding: 0.75rem 1rem;
             }
 
-            .oceanus-hero {
-                padding: 1.1rem 1rem;
+            .st-key-stats [data-testid="stHorizontalBlock"] {
+                gap: 0.5rem;
             }
 
-            .oceanus-title {
-                font-size: 1.7rem;
+            .st-key-stats [data-testid="stColumn"] {
+                min-width: calc(33% - 0.5rem);
+                flex: 1 1 calc(33% - 0.5rem);
             }
 
-            .oceanus-subtitle {
-                font-size: 0.9rem;
+            .stat {
+                padding: 0.6rem 0.7rem;
             }
 
-            .oceanus-kicker {
-                font-size: 0.65rem;
-                letter-spacing: 0.12em;
+            .stat-label {
+                font-size: 0.72rem;
             }
 
-            .metric-card {
-                min-height: 95px;
-                padding: 0.9rem 1rem;
+            .stat-value {
+                font-size: 1.25rem;
             }
 
-            .metric-value {
-                font-size: 1.6rem;
+            .page-heading {
+                padding-top: 1.3rem;
             }
 
-            .metric-label {
-                font-size: 0.7rem;
+            .page-title {
+                font-size: 1.45rem;
             }
 
-            .activity-top {
-                align-items: flex-start;
-                flex-direction: column;
-                gap: 0.25rem;
+            .row-count {
+                text-align: left;
             }
 
-            .activity-action {
-                font-size: 0.68rem;
+            /* Keep Edit / Delete / History on one row on phones */
+            .st-key-bar_actions [data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap;
+                gap: 0.5rem;
             }
 
-            .activity-card {
-                padding: 0.85rem 0.9rem;
+            .st-key-bar_actions [data-testid="stColumn"] {
+                min-width: 0;
+                flex: 1 1 0;
             }
 
-            .access-shell {
+            .st-key-inventory_card,
+            .st-key-projects_card,
+            .st-key-activity_card {
+                padding: 0.8rem;
+            }
+
+            .access-header {
                 margin-top: 6vh;
-                padding: 1.4rem;
             }
         }
 
         </style>
-        """,
-        unsafe_allow_html=True
+        """.replace("WAVES_URI", _WAVES_URI)
     )

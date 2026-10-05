@@ -3,10 +3,11 @@ import hmac
 from pathlib import Path
 from dotenv import dotenv_values
 from styles import apply_styles
+from components import LOGO_SVG, display_topbar
 
 st.set_page_config(
     page_title="Oceanus Inventory",
-    page_icon="🌊",
+    page_icon=":material/inventory_2:",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -29,33 +30,32 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.html(
-        """
-        <div class="access-shell">
-            <div class="access-kicker">
-                OCEANUS • UNDERWATER ROBOTICS
-            </div>
+    display_topbar()
 
-            <div class="access-title">
-                Inventory System
-            </div>
+    _, center, _ = st.columns([1, 2, 1])
 
-            <div class="access-subtitle">
-                Authorized team access
+    with center:
+        st.html(
+            f"""
+            <div class="access-header">
+                {LOGO_SVG}
+                <div class="page-title">Oceanus Inventory</div>
+                <div class="page-subtitle">Enter the team access code to continue.</div>
             </div>
-        </div>
-        """
-    )
-
-    with st.form("access_form"):
-        entered_code = st.text_input(
-            "Team Access Code",
-            type="password"
+            """
         )
 
-        submitted = st.form_submit_button(
-            "Enter Inventory System"
-        )
+        with st.form("access_form"):
+            entered_code = st.text_input(
+                "Access code",
+                type="password"
+            )
+
+            submitted = st.form_submit_button(
+                "Continue",
+                type="primary",
+                width="stretch"
+            )
 
     if submitted:
         if hmac.compare_digest(
@@ -69,14 +69,16 @@ if not st.session_state.authenticated:
 
     st.stop()
 
-from options import MEMBERS
+import options
 
 from database import (
     get_inventory,
     add_inventory_item,
     update_inventory_item,
+    delete_inventory_item,
     add_history,
-    get_history
+    get_history,
+    supports_extended_fields
 )
 
 from inventory import (
@@ -84,42 +86,28 @@ from inventory import (
     filter_inventory,
     get_filter_options,
     get_change_summary,
-    find_duplicate_item
+    find_duplicate_item,
+    validate_item,
+    apply_subteams,
+    UNASSIGNED
 )
 
 from components import (
-    display_search,
-    display_filters,
+    display_header,
+    display_summary,
+    display_toolbar,
     display_inventory,
-    display_add_item_form,
-    display_edit_item_form,
-    display_dashboard,
-    display_history
+    display_selection_bar,
+    display_history,
+    add_item_dialog,
+    edit_item_dialog,
+    delete_item_dialog,
+    item_history_dialog,
+    display_projects,
+    display_footer,
+    FEATURES
 )
 
-
-# --------------------------------------------------
-# PAGE SETUP
-# --------------------------------------------------
-
-
-st.html(
-    """
-    <div class="oceanus-hero">
-        <div class="oceanus-kicker">
-            OCEANUS • UNDERWATER ROBOTICS
-        </div>
-
-        <div class="oceanus-title">
-            Inventory System
-        </div>
-
-        <div class="oceanus-subtitle">
-            Equipment, materials, and inventory operations
-        </div>
-    </div>
-    """
-)
 
 # --------------------------------------------------
 # SESSION STATE
@@ -128,245 +116,256 @@ st.html(
 if "success_message" not in st.session_state:
     st.session_state.success_message = None
 
+# Bumped after every change so the table drops its row selection.
+if "table_version" not in st.session_state:
+    st.session_state.table_version = 0
 
-# --------------------------------------------------
-# MEMBER SELECTION
-# --------------------------------------------------
-
-with st.container(border=True):
-
-    st.markdown(
-    "#### Who are you?",
-    anchors=False
-    )
-
-    current_member = st.selectbox(
-        "Select your name before making inventory changes",
-        MEMBERS,
-        index=None,
-        placeholder="Select your name..."
-    )
-
-    st.caption(
-        "Your name will be recorded when you add or edit inventory."
-    )
-
-
-st.session_state.current_member = current_member
-
-
-# --------------------------------------------------
-# SUCCESS MESSAGES
-# --------------------------------------------------
-
-if st.session_state.success_message:
-
-    st.success(
-        st.session_state.success_message
-    )
-
-    st.session_state.success_message = None
+if "status_choice" not in st.session_state:
+    st.session_state.status_choice = "All"
 
 
 # --------------------------------------------------
 # LOAD DATA
 # --------------------------------------------------
 
-items = get_inventory()
+try:
+    stored_items = get_inventory()
+    items = apply_subteams(stored_items)
+    history = get_history()
+    extended = supports_extended_fields()
+except Exception as error:
+    print(f"Failed to load inventory: {error!r}")
+    st.error("Unable to load inventory. Please refresh and try again.")
+    st.stop()
 
-history = get_history()
+FEATURES["extended"] = extended
 
 
 # --------------------------------------------------
-# DASHBOARD
+# HEADER
 # --------------------------------------------------
 
-display_dashboard(items)
+current_member = display_header(options.get("members"))
 
-
-# --------------------------------------------------
-# INVENTORY CHANGES
-# --------------------------------------------------
-
-if current_member:
-
-    # ------------------------------
-    # EDIT ITEM
-    # ------------------------------
-
-    st.markdown(
-        """
-        <div style="
-            margin-top: 1.4rem;
-            margin-bottom: 0.6rem;
-            color: #8FAFC1;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.14em;
-        ">
-            INVENTORY OPERATIONS
-        </div>
-        """,
-        unsafe_allow_html=True
+if st.session_state.success_message:
+    st.toast(
+        st.session_state.success_message,
+        icon=":material/check_circle:"
     )
 
-    item_id, updated_data = display_edit_item_form(items)
+    st.session_state.success_message = None
 
-    if item_id:
 
-        old_item = next(
-            item
-            for item in items
-            if item["id"] == item_id
+# --------------------------------------------------
+# CHANGE HANDLERS
+# Each returns an error message for the modal, or None on success.
+# --------------------------------------------------
+
+def finish_change(message):
+    st.session_state.success_message = message
+    st.session_state.table_version += 1
+
+
+def save_new_item(new_item):
+    error = validate_item(new_item)
+
+    if error:
+        return error
+
+    duplicate = find_duplicate_item(
+        items,
+        new_item
+    )
+
+    if duplicate:
+        return (
+            f"{duplicate['name']} already exists at "
+            f"{duplicate['location']}. "
+            "Edit the existing item instead of creating a duplicate."
         )
 
-        changes = get_change_summary(
-            old_item,
-            updated_data
-        )
-
-        update_inventory_item(
-            item_id,
-            updated_data
-        )
-
-        if changes:
-
-            add_history(
-                item_id,
-                updated_data["name"],
-                "EDIT",
-                current_member,
-                changes
-            )
-
-        st.session_state.success_message = (
-            f"{updated_data['name']} updated successfully."
-        )
-
-        st.rerun()
-
-
-    # ------------------------------
-    # ADD ITEM
-    # ------------------------------
-
-    new_item = display_add_item_form()
-
-    if new_item:
-
-        duplicate = find_duplicate_item(
-            items,
+    try:
+        added_item = add_inventory_item(
             new_item
+        )[0]
+
+        add_history(
+            added_item["id"],
+            added_item["name"],
+            "ADD",
+            current_member,
+            f"Added {added_item['quantity']} at {added_item['location']}"
         )
+    except Exception as error:
+        print(f"Failed to add item: {error!r}")
+        return "Unable to add item. Please try again."
 
-        if duplicate:
-
-            st.warning(
-                f"{duplicate['name']} already exists at "
-                f"{duplicate['location']}. "
-                "Edit the existing item instead of creating a duplicate."
-            )
-
-        else:
-
-            added_items = add_inventory_item(
-                new_item
-            )
-
-            added_item = added_items[0]
-
-            add_history(
-                added_item["id"],
-                added_item["name"],
-                "ADD",
-                current_member,
-                "Item added to inventory"
-            )
-
-            st.session_state.success_message = (
-                f"{new_item['name']} added successfully."
-            )
-
-            st.rerun()
-
-
-else:
-
-    st.info(
-        "Select your name above to add or edit inventory."
+    finish_change(
+        f"{new_item['name']} added successfully."
     )
 
+    return None
+
+
+def save_item_changes(old_item, updated_data):
+    error = validate_item(updated_data)
+
+    if error:
+        return error
+
+    duplicate = find_duplicate_item(
+        items,
+        updated_data,
+        exclude_id=old_item["id"]
+    )
+
+    if duplicate:
+        return (
+            f"{duplicate['name']} already exists at "
+            f"{duplicate['location']}."
+        )
+
+    stored_item = next(
+        item
+        for item in stored_items
+        if item["id"] == old_item["id"]
+    )
+
+    changes = get_change_summary(
+        stored_item,
+        updated_data
+    )
+
+    if not changes:
+        return "No changes to save."
+
+    try:
+        update_inventory_item(
+            old_item["id"],
+            updated_data
+        )
+
+        add_history(
+            old_item["id"],
+            updated_data["name"],
+            "EDIT",
+            current_member,
+            changes
+        )
+    except Exception as error:
+        print(f"Failed to update item: {error!r}")
+        return "Unable to update inventory. Please try again."
+
+    finish_change(
+        f"{updated_data['name']} updated successfully."
+    )
+
+    return None
+
+
+def remove_item(item):
+    try:
+        delete_inventory_item(
+            item["id"]
+        )
+
+        add_history(
+            item["id"],
+            item["name"],
+            "DELETE",
+            current_member,
+            f"Deleted {item['quantity']} from {item['location']} "
+            f"({item['category']}, {item['subsystem']})"
+        )
+    except Exception as error:
+        print(f"Failed to delete item: {error!r}")
+        return "Unable to delete item. Please try again."
+
+    finish_change(
+        f"{item['name']} deleted."
+    )
+
+    return None
+
 
 # --------------------------------------------------
-# SEARCH
+# PAGE
 # --------------------------------------------------
 
-st.html(
-    """
-    <div class="inventory-section-label">
-        INVENTORY DATABASE
-    </div>
-    """
+display_summary(items)
+
+can_edit = current_member is not None
+
+inventory_tab, projects_tab, activity_tab = st.tabs(
+    ["Inventory", "Projects", "Activity"]
 )
 
-search = display_search()
+with inventory_tab, st.container(border=True, key="inventory_card"):
 
-filtered_items = search_inventory(
-    items,
-    search
-)
+    categories, subteams, locations = get_filter_options(
+        items
+    )
 
+    projects = ["All"] + options.get("projects") + [UNASSIGNED]
 
-# --------------------------------------------------
-# FILTER OPTIONS
-# --------------------------------------------------
+    search, filters, add_clicked = display_toolbar(
+        can_edit,
+        categories,
+        subteams,
+        locations,
+        projects
+    )
 
-categories, subsystems, locations = get_filter_options(
-    filtered_items
-)
+    (
+        category_filter,
+        subteam_filter,
+        location_filter,
+        status_filter,
+        project_filter
+    ) = filters
 
-category_filter, subsystem_filter, location_filter = display_filters(
-    categories,
-    subsystems,
-    locations
-)
+    if add_clicked:
+        add_item_dialog(save_new_item)
 
+    filtered_items = filter_inventory(
+        search_inventory(items, search),
+        category_filter,
+        subteam_filter,
+        location_filter,
+        status_filter,
+        project_filter
+    )
 
-# --------------------------------------------------
-# APPLY FILTERS
-# --------------------------------------------------
+    # The table renders after the bar, so read its selection from state.
+    table_key = f"inventory_table_{st.session_state.table_version}"
+    selection_bar = st.container()
 
-filtered_items = filter_inventory(
-    filtered_items,
-    category_filter,
-    subsystem_filter,
-    location_filter
-)
+    selected_item = display_inventory(
+        filtered_items,
+        table_key
+    )
 
+    with selection_bar:
+        action = display_selection_bar(
+            selected_item,
+            can_edit,
+            len(filtered_items),
+            len(items)
+        )
 
-# --------------------------------------------------
-# INVENTORY DISPLAY
-# --------------------------------------------------
+    if action == "edit":
+        edit_item_dialog(selected_item, save_item_changes)
+    elif action == "delete":
+        delete_item_dialog(selected_item, remove_item)
+    elif action == "history":
+        item_history_dialog(history, selected_item)
 
-display_inventory(
-    filtered_items
-)
+with activity_tab, st.container(border=True, key="activity_card"):
 
+    display_history(history)
 
-# --------------------------------------------------
-# HISTORY
-# --------------------------------------------------
+with projects_tab, st.container(border=True, key="projects_card"):
 
+    display_projects(items)
 
-st.html(
-    """
-    <div class="activity-section-label">
-        RECENT ACTIVITY
-    </div>
-    """
-)
-
-display_history(
-    history
-)
+display_footer()

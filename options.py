@@ -1,3 +1,6 @@
+# Lists used by the dropdowns. Edit them here to add or rename members,
+# locations, categories, subteams or projects.
+
 CATEGORIES = [
     "Fasteners",
     "Electronics",
@@ -11,17 +14,27 @@ CATEGORIES = [
     "Misc."
 ]
 
-SUBSYSTEMS = [
-    "Mechanical",
-    "Electrical",
-    "Controls",
-    "Manipulator",
-    "Propulsion",
-    "Cameras/Sensors",
-    "Tether",
-    "Waterproofing",
-    "General"
+# Stored in the inventory_items.subsystem column.
+SUBTEAMS = [
+    "F-P",
+    "EPS",
+    "TMS",
+    "GNC",
+    "C-C"
 ]
+
+# Old subsystem names still stored on existing rows, and the subteam each
+# one now belongs to. Rows without a match keep their value until edited.
+LEGACY_SUBTEAMS = {
+    "Mechanical": "F-P",
+    "Propulsion": "F-P",
+    "Manipulator": "F-P",
+    "Waterproofing": "F-P",
+    "Electrical": "EPS",
+    "Tether": "TMS",
+    "Controls": "GNC",
+    "Cameras/Sensors": "C-C"
+}
 
 ITEM_TYPES = [
     "Asset",
@@ -49,3 +62,29 @@ MEMBERS = [
     "Member C",
     "Member D"
 ]
+
+PROJECTS = [
+    "ROV build",
+    "Competition",
+    "Pool testing",
+    "Training",
+    "Spares"
+]
+
+
+
+# --------------------------------------------------
+# LOOKUP
+# --------------------------------------------------
+
+LISTS = {
+    "members": MEMBERS,
+    "locations": LOCATIONS,
+    "categories": CATEGORIES,
+    "subteams": SUBTEAMS,
+    "projects": PROJECTS
+}
+
+
+def get(name):
+    return LISTS[name]

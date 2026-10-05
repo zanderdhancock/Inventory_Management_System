@@ -1,3 +1,37 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from options import LEGACY_SUBTEAMS
+
+
+DISPLAY_TIMEZONE = ZoneInfo("America/Chicago")
+
+FIELD_LABELS = {
+    "name": "name",
+    "category": "category",
+    "subsystem": "subteam",
+    "location": "location",
+    "quantity": "quantity",
+    "type": "type",
+    "status": "status",
+    "notes": "notes",
+    "project": "project"
+}
+
+# Columns added by supabase/2026-10-05_add_project_column.sql.
+EXTENDED_FIELDS = [
+    "project"
+]
+
+REQUIRED_FIELDS = {
+    "category": "Category",
+    "subsystem": "Subteam",
+    "location": "Location",
+    "type": "Type",
+    "status": "Status"
+}
+
+
 def search_inventory(items, search):
     if not search:
         return items
@@ -17,7 +51,9 @@ def filter_inventory(
     items,
     category_filter,
     subsystem_filter,
-    location_filter
+    location_filter,
+    status_filter="All",
+    project_filter="All"
 ):
     if category_filter != "All":
         items = [
@@ -35,6 +71,18 @@ def filter_inventory(
         items = [
             item for item in items
             if item["location"] == location_filter
+        ]
+
+    if status_filter != "All":
+        items = [
+            item for item in items
+            if item["status"] == status_filter
+        ]
+
+    if project_filter != "All":
+        items = [
+            item for item in items
+            if (item.get("project") or UNASSIGNED) == project_filter
         ]
 
     return items
@@ -55,24 +103,110 @@ def get_filter_options(items):
 
     return categories, subsystems, locations
 
+
+def apply_subteams(items):
+    """Show rows still carrying an old subsystem under its new subteam."""
+    return [
+        {
+            **item,
+            "subsystem": LEGACY_SUBTEAMS.get(
+                item["subsystem"],
+                item["subsystem"]
+            )
+        }
+        for item in items
+    ]
+
+
+UNASSIGNED = "Unassigned"
+
+
+def summarize_projects(items, projects):
+    """Item count, units and low/out count per project, in list order."""
+    names = list(projects)
+
+    for item in items:
+        project = item.get("project")
+
+        if project and project not in names:
+            names.append(project)
+
+    names.append(UNASSIGNED)
+
+    summary = []
+
+    for name in names:
+        members = [
+            item for item in items
+            if (item.get("project") or UNASSIGNED) == name
+        ]
+
+        if name == UNASSIGNED and not members:
+            continue
+
+        summary.append({
+            "project": name,
+            "items": len(members),
+            "units": sum(int(item["quantity"] or 0) for item in members),
+            "attention": sum(
+                1 for item in members
+                if item["status"] in ("Low", "Out")
+            )
+        })
+
+    return summary
+
+
+def option_index(options, value):
+    # Stored values that are no longer valid options (for example an old
+    # subsystem name) leave the selectbox empty instead of crashing.
+    if value in options:
+        return options.index(value)
+
+    return None
+
+
+def validate_item(item):
+    if not item["name"]:
+        return "Item name is required."
+
+    for field, label in REQUIRED_FIELDS.items():
+        if not item.get(field):
+            return f"{label} is required."
+
+    return None
+
+
+def _normalize(value):
+    if value is None:
+        return ""
+
+    return value
+
+
 def get_change_summary(old_item, updated_data):
     changes = []
 
     for field, new_value in updated_data.items():
         old_value = old_item.get(field)
 
-        if old_value != new_value:
+        if _normalize(old_value) != _normalize(new_value):
+            label = FIELD_LABELS.get(field, field)
             changes.append(
-                f"{field}: {old_value} → {new_value}"
+                f"{label}: {_normalize(old_value)} → {_normalize(new_value)}"
             )
 
     return ", ".join(changes)
 
-def find_duplicate_item(items, new_item):
+
+def find_duplicate_item(items, new_item, exclude_id=None):
     new_name = new_item["name"].strip().lower()
     new_location = new_item["location"].strip().lower()
 
     for item in items:
+        if exclude_id is not None and item["id"] == exclude_id:
+            continue
+
         existing_name = str(item["name"]).strip().lower()
         existing_location = str(item["location"]).strip().lower()
 
@@ -83,3 +217,78 @@ def find_duplicate_item(items, new_item):
             return item
 
     return None
+
+
+# --------------------------------------------------
+# HISTORY
+# --------------------------------------------------
+
+def parse_timestamp(value):
+    if not value:
+        return None
+
+    try:
+        timestamp = datetime.fromisoformat(
+            str(value).replace("Z", "+00:00")
+        )
+    except ValueError:
+        return None
+
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=ZoneInfo("UTC"))
+
+    return timestamp.astimezone(DISPLAY_TIMEZONE)
+
+
+def format_timestamp(value):
+    timestamp = parse_timestamp(value)
+
+    if not timestamp:
+        return ""
+
+    return timestamp.strftime("%b %d, %Y %I:%M %p")
+
+
+def filter_history(
+    history,
+    members=None,
+    actions=None,
+    search="",
+    start_date=None,
+    end_date=None,
+    item_id=None
+):
+    results = []
+    search = (search or "").strip().lower()
+
+    for entry in history:
+        if item_id is not None and entry["item_id"] != item_id:
+            continue
+
+        if members and entry["member"] not in members:
+            continue
+
+        if actions and entry["action"] not in actions:
+            continue
+
+        if search and not (
+            search in str(entry["item_name"]).lower()
+            or search in str(entry["details"] or "").lower()
+        ):
+            continue
+
+        if start_date or end_date:
+            timestamp = parse_timestamp(entry["created_at"])
+
+            if not timestamp:
+                continue
+
+            if start_date and timestamp.date() < start_date:
+                continue
+
+            if end_date and timestamp.date() > end_date:
+                continue
+
+        results.append(entry)
+
+    return results
