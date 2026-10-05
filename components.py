@@ -1,7 +1,7 @@
 import csv
 import io
-from html import escape
 
+import pandas as pd
 import streamlit as st
 
 from options import (
@@ -19,17 +19,17 @@ from inventory import (
 )
 
 
-STATUS_BADGES = {
-    "Available": "🟢 Available",
-    "Low": "🟡 Low",
-    "Out": "🔴 Out",
-    "In Use": "🔵 In Use"
+STATUS_COLORS = {
+    "Available": "#5FB98A",
+    "Low": "#E0A548",
+    "Out": "#E06A5F",
+    "In Use": "#6AA7D6"
 }
 
-ACTION_ICONS = {
-    "ADD": "➕",
-    "EDIT": "✏️",
-    "DELETE": "🗑️"
+ACTION_LABELS = {
+    "ADD": "Added",
+    "EDIT": "Edited",
+    "DELETE": "Deleted"
 }
 
 FILTER_KEYS = [
@@ -38,6 +38,64 @@ FILTER_KEYS = [
     "filter_location",
     "filter_status"
 ]
+
+
+# --------------------------------------------------
+# HEADER
+# --------------------------------------------------
+
+def display_header(members):
+    col1, col2 = st.columns(
+        [3, 2],
+        vertical_alignment="bottom"
+    )
+
+    with col1:
+        st.html(
+            """
+            <div class="app-header">
+                <div class="app-title">Oceanus Inventory</div>
+                <div class="app-subtitle">Texas A&amp;M underwater robotics</div>
+            </div>
+            """
+        )
+
+    with col2:
+        return st.selectbox(
+            "Making changes as",
+            members,
+            index=None,
+            placeholder="Choose your name",
+            key="current_member"
+        )
+
+
+def display_summary(items):
+    total_quantity = sum(
+        int(item["quantity"])
+        for item in items
+        if item["quantity"] is not None
+    )
+
+    stats = [
+        ("Items", len(items)),
+        ("Units", total_quantity),
+        ("Low stock", sum(1 for i in items if i["status"] == "Low")),
+        ("Out", sum(1 for i in items if i["status"] == "Out")),
+        ("In use", sum(1 for i in items if i["status"] == "In Use"))
+    ]
+
+    cells = "".join(
+        f"""
+        <div class="stat">
+            <div class="stat-value">{value}</div>
+            <div class="stat-label">{label}</div>
+        </div>
+        """
+        for label, value in stats
+    )
+
+    st.html(f'<div class="stats">{cells}</div>')
 
 
 # --------------------------------------------------
@@ -51,128 +109,134 @@ def clear_filters():
         st.session_state[key] = "All"
 
 
-def display_search(can_edit):
-    col1, col2 = st.columns(
-        [5, 1],
+def filters_active():
+    if st.session_state.get("inventory_search"):
+        return True
+
+    return any(
+        st.session_state.get(key, "All") != "All"
+        for key in FILTER_KEYS
+    )
+
+
+def _active_filter_count():
+    return sum(
+        1
+        for key in FILTER_KEYS
+        if st.session_state.get(key, "All") != "All"
+    )
+
+
+def display_toolbar(can_edit, categories, subteams, locations):
+    """Search, filters and Add item on one row."""
+    col1, col2, col3 = st.columns(
+        [6, 1.3, 1.3],
         gap="small",
         vertical_alignment="bottom"
     )
 
     with col1:
         search = st.text_input(
-            "Search Inventory",
-            placeholder="Search by item, category, subteam, or location...",
+            "Search",
+            placeholder="Search by item, category, subteam, or location",
             key="inventory_search",
             label_visibility="collapsed"
         )
 
     with col2:
+        active = _active_filter_count()
+        label = f"Filters · {active}" if active else "Filters"
+
+        with st.popover(label, icon=":material/filter_list:", width="stretch"):
+            category = st.selectbox(
+                "Category",
+                categories,
+                key="filter_category"
+            )
+
+            subteam = st.selectbox(
+                "Subteam",
+                subteams,
+                key="filter_subteam"
+            )
+
+            location = st.selectbox(
+                "Location",
+                locations,
+                key="filter_location"
+            )
+
+            status = st.selectbox(
+                "Status",
+                ["All"] + STATUSES,
+                key="filter_status"
+            )
+
+            st.button(
+                "Clear filters",
+                on_click=clear_filters,
+                disabled=not filters_active(),
+                type="tertiary"
+            )
+
+    with col3:
         add_clicked = st.button(
-            "Add Item",
+            "Add item",
             icon=":material/add:",
             type="primary",
             disabled=not can_edit,
+            help=None if can_edit else "Choose your name first",
             width="stretch"
         )
 
-    return search, add_clicked
-
-
-def display_filters(categories, subteams, locations):
-    col1, col2, col3, col4, col5 = st.columns(
-        [3, 3, 3, 3, 2],
-        gap="small",
-        vertical_alignment="bottom"
-    )
-
-    with col1:
-        category = st.selectbox(
-            "Category",
-            categories,
-            key="filter_category"
-        )
-
-    with col2:
-        subteam = st.selectbox(
-            "Subteam",
-            subteams,
-            key="filter_subteam"
-        )
-
-    with col3:
-        location = st.selectbox(
-            "Location",
-            locations,
-            key="filter_location"
-        )
-
-    with col4:
-        status = st.selectbox(
-            "Status",
-            ["All"] + STATUSES,
-            key="filter_status"
-        )
-
-    with col5:
-        st.button(
-            "Clear Filters",
-            icon=":material/refresh:",
-            on_click=clear_filters,
-            width="stretch"
-        )
-
-    return category, subteam, location, status
+    return search, (category, subteam, location, status), add_clicked
 
 
 # --------------------------------------------------
 # INVENTORY LIST
 # --------------------------------------------------
 
+def _status_style(value):
+    color = STATUS_COLORS.get(value)
+
+    if not color:
+        return ""
+
+    return f"color: {color}; font-weight: 500;"
+
+
 def display_inventory(items, table_key):
     """Show the inventory table and return the row the user selected."""
     if not items:
-        st.info("No inventory items match the current search and filters.")
+        st.info("No items match your search and filters.")
         return None
 
-    display_items = []
-
-    for item in items:
-        display_items.append({
+    table = pd.DataFrame([
+        {
             "Item": item["name"],
-            "Category": item["category"],
-            "Subteam": item["subsystem"],
-            "Location": item["location"],
             "Qty": item["quantity"],
+            "Status": item["status"],
+            "Location": item["location"],
+            "Subteam": item["subsystem"],
+            "Category": item["category"],
             "Type": item["type"],
-            "Status": STATUS_BADGES.get(item["status"], item["status"]),
-            "Notes": item["notes"]
-        })
+            "Notes": item["notes"] or ""
+        }
+        for item in items
+    ])
 
     event = st.dataframe(
-        display_items,
+        table.style.map(_status_style, subset=["Status"]),
         width="stretch",
         hide_index=True,
         key=table_key,
         on_select="rerun",
         selection_mode="single-row",
         column_config={
-            "Item": st.column_config.TextColumn(
-                "Item",
-                width="medium"
-            ),
-            "Qty": st.column_config.NumberColumn(
-                "Qty",
-                width="small",
-                format="%d"
-            ),
-            "Status": st.column_config.TextColumn(
-                "Status",
-                width="small"
-            ),
-            "Notes": st.column_config.TextColumn(
-                "Notes",
-                width="large"
-            )
+            "Item": st.column_config.TextColumn("Item", width="medium"),
+            "Qty": st.column_config.NumberColumn("Qty", width="small", format="%d"),
+            "Status": st.column_config.TextColumn("Status", width="small"),
+            "Notes": st.column_config.TextColumn("Notes", width="large")
         }
     )
 
@@ -185,50 +249,70 @@ def display_inventory(items, table_key):
     return items[rows[0]]
 
 
-def display_row_actions(selected_item, can_edit):
-    """Action bar for the selected table row. Returns the clicked action."""
-    if not selected_item:
-        st.caption(
-            "Select a row to edit, delete, or view its history."
+def display_selection_bar(selected_item, can_edit, shown, total):
+    """Sits above the table. Returns the action the user clicked, if any."""
+    with st.container(border=True, key="selection_bar"):
+        if not selected_item:
+            col1, col2 = st.columns([3, 1], vertical_alignment="center")
+
+            with col1:
+                if can_edit:
+                    st.markdown(
+                        "Click a row's checkbox to edit, delete, "
+                        "or see its history."
+                    )
+                else:
+                    st.markdown(
+                        "Choose your name at the top to add, edit, "
+                        "or delete items."
+                    )
+
+            with col2:
+                st.html(
+                    f'<div class="row-count">{shown} of {total} items</div>'
+                )
+
+            return None
+
+        col1, col2, col3, col4 = st.columns(
+            [4, 1, 1, 1],
+            gap="small",
+            vertical_alignment="center"
         )
-        return None
 
-    col1, col2, col3, col4 = st.columns(
-        [4, 1, 1, 1],
-        gap="small",
-        vertical_alignment="center"
-    )
+        with col1:
+            st.markdown(
+                f"**{selected_item['name']}** · "
+                f"{selected_item['location']} · "
+                f"qty {selected_item['quantity']}"
+            )
 
-    with col1:
-        st.markdown(
-            f"**{selected_item['name']}** · {selected_item['location']}"
-        )
+        with col2:
+            if st.button(
+                "Edit",
+                icon=":material/edit:",
+                type="primary",
+                disabled=not can_edit,
+                width="stretch"
+            ):
+                return "edit"
 
-    with col2:
-        if st.button(
-            "Edit",
-            icon=":material/edit:",
-            disabled=not can_edit,
-            width="stretch"
-        ):
-            return "edit"
+        with col3:
+            if st.button(
+                "Delete",
+                icon=":material/delete:",
+                disabled=not can_edit,
+                width="stretch"
+            ):
+                return "delete"
 
-    with col3:
-        if st.button(
-            "Delete",
-            icon=":material/delete:",
-            disabled=not can_edit,
-            width="stretch"
-        ):
-            return "delete"
-
-    with col4:
-        if st.button(
-            "History",
-            icon=":material/history:",
-            width="stretch"
-        ):
-            return "history"
+        with col4:
+            if st.button(
+                "History",
+                icon=":material/history:",
+                width="stretch"
+            ):
+                return "history"
 
     return None
 
@@ -241,7 +325,7 @@ def _item_fields(item=None):
     item = item or {}
 
     name = st.text_input(
-        "Item Name",
+        "Item name",
         value=item.get("name", "")
     )
 
@@ -307,7 +391,7 @@ def _item_fields(item=None):
     }
 
 
-def _submit_buttons(label):
+def _submit_buttons(label, danger=False):
     col1, col2 = st.columns(2)
 
     with col1:
@@ -319,7 +403,7 @@ def _submit_buttons(label):
     with col2:
         submitted = st.form_submit_button(
             label,
-            type="primary",
+            type="secondary" if danger else "primary",
             width="stretch"
         )
 
@@ -333,11 +417,11 @@ def _finish(error):
         st.rerun()
 
 
-@st.dialog("Add Item", width="medium")
+@st.dialog("Add item", width="medium")
 def add_item_dialog(on_save):
     with st.form("add_item_form", border=False):
         item = _item_fields()
-        submitted, cancelled = _submit_buttons("Add Item")
+        submitted, cancelled = _submit_buttons("Add item")
 
     if cancelled:
         st.rerun()
@@ -346,7 +430,7 @@ def add_item_dialog(on_save):
         _finish(on_save(item))
 
 
-@st.dialog("Edit Item", width="medium")
+@st.dialog("Edit item", width="medium")
 def edit_item_dialog(item, on_save):
     if item["subsystem"] not in SUBTEAMS:
         st.info(
@@ -356,7 +440,7 @@ def edit_item_dialog(item, on_save):
 
     with st.form("edit_item_form", border=False):
         updated = _item_fields(item)
-        submitted, cancelled = _submit_buttons("Save Changes")
+        submitted, cancelled = _submit_buttons("Save changes")
 
     if cancelled:
         st.rerun()
@@ -365,161 +449,37 @@ def edit_item_dialog(item, on_save):
         _finish(on_save(item, updated))
 
 
-@st.dialog("Delete Item", width="small")
+@st.dialog("Delete item", width="small")
 def delete_item_dialog(item, on_delete):
     st.markdown(
-        f"**{item['name']}**  \n"
-        f"{item['location']} · {item['subsystem']} · Qty {item['quantity']}"
+        f"Delete **{item['name']}** "
+        f"({item['quantity']} at {item['location']})?"
     )
 
-    st.warning(
-        "This removes the item from inventory. "
-        "Its history is kept."
+    st.caption(
+        "It disappears from the inventory list. "
+        "Its history stays in the Activity tab."
     )
 
     with st.form("delete_item_form", border=False):
         confirm = st.checkbox(
-            f"I confirm I want to delete {item['name']}"
+            "Yes, delete this item"
         )
-        submitted, cancelled = _submit_buttons("Delete Item")
+        submitted, cancelled = _submit_buttons("Delete", danger=True)
 
     if cancelled:
         st.rerun()
 
     if submitted:
         if not confirm:
-            st.warning("Confirm the deletion first.")
+            st.warning("Tick the box to confirm.")
         else:
             _finish(on_delete(item))
-
-
-def display_dashboard(items):
-    total_entries = len(items)
-
-    total_quantity = sum(
-        int(item["quantity"])
-        for item in items
-        if item["quantity"] is not None
-    )
-
-    low_stock = sum(
-        1
-        for item in items
-        if item["status"] == "Low"
-    )
-
-    in_use = sum(
-        1
-        for item in items
-        if item["status"] == "In Use"
-    )
-
-    col1, col2, col3, col4 = st.columns(
-        4,
-        gap="small"
-    )
-
-    with col1:
-        st.html(
-            f"""
-            <div class="metric-card">
-                <div class="metric-label">Inventory Entries</div>
-                <div class="metric-value">{total_entries}</div>
-                <div class="metric-accent"></div>
-            </div>
-            """
-        )
-
-    with col2:
-        st.html(
-            f"""
-            <div class="metric-card">
-                <div class="metric-label">Total Quantity</div>
-                <div class="metric-value">{total_quantity}</div>
-                <div class="metric-accent"></div>
-            </div>
-            """
-        )
-
-    with col3:
-        st.html(
-            f"""
-            <div class="metric-card">
-                <div class="metric-label">Low Stock</div>
-                <div class="metric-value">{low_stock}</div>
-                <div class="metric-accent"></div>
-            </div>
-            """
-        )
-
-    with col4:
-        st.html(
-            f"""
-            <div class="metric-card">
-                <div class="metric-label">In Use</div>
-                <div class="metric-value">{in_use}</div>
-                <div class="metric-accent"></div>
-            </div>
-            """
-        )
 
 
 # --------------------------------------------------
 # HISTORY
 # --------------------------------------------------
-
-def display_history(history, limit=15):
-    if not history:
-        st.info("No inventory activity recorded yet.")
-        return
-
-    for entry in history[:limit]:
-        icon = ACTION_ICONS.get(
-            entry["action"],
-            "•"
-        )
-
-        timestamp = format_timestamp(entry["created_at"])
-
-        item_name = escape(str(entry["item_name"]))
-        member = escape(str(entry["member"]))
-        action = escape(str(entry["action"]))
-        details = escape(str(entry["details"] or ""))
-
-        details_html = ""
-
-        if entry["details"]:
-            details_html = f"""
-                <div class="activity-details">
-                    {details}
-                </div>
-            """
-
-        st.html(
-            f"""
-            <div class="activity-card">
-                <div class="activity-top">
-
-                    <div class="activity-item">
-                        {icon} {item_name}
-                    </div>
-
-                    <div class="activity-action">
-                        {action}
-                    </div>
-
-                </div>
-
-                <div class="activity-meta">
-                    {member} • {timestamp}
-                </div>
-
-                {details_html}
-
-            </div>
-            """
-        )
-
 
 def _history_csv(entries):
     buffer = io.StringIO()
@@ -538,43 +498,51 @@ def _history_csv(entries):
     return buffer.getvalue()
 
 
-@st.dialog("Activity History", width="large")
-def history_dialog(history, item=None):
-    if item:
-        st.caption(f"Showing history for **{item['name']}**")
+def display_history(history, item=None, key="history"):
+    if not history:
+        st.info("No inventory activity recorded yet.")
+        return
 
     members = sorted(
         set(entry["member"] for entry in history if entry["member"])
     )
-    actions = sorted(
-        set(entry["action"] for entry in history if entry["action"])
+
+    cols = st.columns(
+        [3, 2, 2, 2],
+        gap="small",
+        vertical_alignment="bottom"
     )
 
-    col1, col2 = st.columns(2)
+    with cols[0]:
+        search = st.text_input(
+            "Search",
+            placeholder="Item name or change details",
+            key=f"{key}_search"
+        )
 
-    with col1:
+    with cols[1]:
         member_filter = st.multiselect(
             "Member",
             members,
-            placeholder="All members"
+            placeholder="Anyone",
+            key=f"{key}_members"
         )
 
-        search = st.text_input(
-            "Search",
-            placeholder="Item name or change details..."
-        )
-
-    with col2:
+    with cols[2]:
         action_filter = st.multiselect(
             "Action",
-            actions,
-            placeholder="All actions"
+            list(ACTION_LABELS),
+            format_func=ACTION_LABELS.get,
+            placeholder="Any",
+            key=f"{key}_actions"
         )
 
+    with cols[3]:
         date_range = st.date_input(
-            "Date range",
+            "Dates",
             value=[],
-            format="MM/DD/YYYY"
+            format="MM/DD/YYYY",
+            key=f"{key}_dates"
         )
 
     start_date = date_range[0] if len(date_range) > 0 else None
@@ -590,18 +558,6 @@ def history_dialog(history, item=None):
         item_id=item["id"] if item else None
     )
 
-    counts = {
-        action: sum(1 for entry in entries if entry["action"] == action)
-        for action in ["ADD", "EDIT", "DELETE"]
-    }
-
-    st.caption(
-        f"{len(entries)} records · "
-        f"{counts['ADD']} added · "
-        f"{counts['EDIT']} edited · "
-        f"{counts['DELETE']} deleted"
-    )
-
     if not entries:
         st.info("No activity matches these filters.")
         return
@@ -609,10 +565,10 @@ def history_dialog(history, item=None):
     st.dataframe(
         [
             {
-                "Time": format_timestamp(entry["created_at"]),
-                "Action": f"{ACTION_ICONS.get(entry['action'], '•')} {entry['action']}",
+                "When": format_timestamp(entry["created_at"]),
                 "Item": entry["item_name"],
-                "Member": entry["member"],
+                "Action": ACTION_LABELS.get(entry["action"], entry["action"]),
+                "By": entry["member"],
                 "Details": entry["details"] or ""
             }
             for entry in entries
@@ -620,17 +576,31 @@ def history_dialog(history, item=None):
         width="stretch",
         hide_index=True,
         column_config={
-            "Details": st.column_config.TextColumn(
-                "Details",
-                width="large"
-            )
+            "When": st.column_config.TextColumn("When", width="medium"),
+            "Action": st.column_config.TextColumn("Action", width="small"),
+            "Details": st.column_config.TextColumn("Details", width="large")
         }
     )
 
-    st.download_button(
-        "Download CSV",
-        data=_history_csv(entries),
-        file_name="oceanus_inventory_history.csv",
-        mime="text/csv",
-        icon=":material/download:"
-    )
+    col1, col2 = st.columns([3, 1], vertical_alignment="center")
+
+    with col1:
+        st.caption(f"{len(entries)} of {len(history)} records")
+
+    with col2:
+        st.download_button(
+            "Export CSV",
+            data=_history_csv(entries),
+            file_name="oceanus_inventory_history.csv",
+            mime="text/csv",
+            icon=":material/download:",
+            type="tertiary",
+            key=f"{key}_export",
+            width="stretch"
+        )
+
+
+@st.dialog("Item history", width="large")
+def item_history_dialog(history, item):
+    st.markdown(f"**{item['name']}** · {item['location']}")
+    display_history(history, item=item, key="item_history")

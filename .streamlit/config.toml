@@ -1,7 +1,16 @@
 [theme]
 base = "dark"
-primaryColor = "#00B4D8"
-backgroundColor = "#07111F"
-secondaryBackgroundColor = "#0E1B2B"
-textColor = "#EAF7FF"
-font = "sans serif"
+primaryColor = "#3D8FC4"
+backgroundColor = "#111418"
+secondaryBackgroundColor = "#1A1F25"
+textColor = "#E3E6E9"
+borderColor = "#2A3038"
+showWidgetBorder = true
+baseRadius = "6px"
+buttonRadius = "6px"
+dataframeHeaderBackgroundColor = "#161A1F"
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap, sans-serif"
+baseFontSize = 15
+
+[client]
+toolbarMode = "minimal"

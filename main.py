@@ -6,7 +6,7 @@ from styles import apply_styles
 
 st.set_page_config(
     page_title="Oceanus Inventory",
-    page_icon="🌊",
+    page_icon=":material/inventory_2:",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -29,33 +29,29 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
-    st.html(
-        """
-        <div class="access-shell">
-            <div class="access-kicker">
-                OCEANUS • UNDERWATER ROBOTICS
-            </div>
+    _, center, _ = st.columns([1, 2, 1])
 
-            <div class="access-title">
-                Inventory System
+    with center:
+        st.html(
+            """
+            <div class="access-header">
+                <div class="app-title">Oceanus Inventory</div>
+                <div class="app-subtitle">Enter the team access code to continue.</div>
             </div>
-
-            <div class="access-subtitle">
-                Authorized team access
-            </div>
-        </div>
-        """
-    )
-
-    with st.form("access_form"):
-        entered_code = st.text_input(
-            "Team Access Code",
-            type="password"
+            """
         )
 
-        submitted = st.form_submit_button(
-            "Enter Inventory System"
-        )
+        with st.form("access_form"):
+            entered_code = st.text_input(
+                "Access code",
+                type="password"
+            )
+
+            submitted = st.form_submit_button(
+                "Continue",
+                type="primary",
+                width="stretch"
+            )
 
     if submitted:
         if hmac.compare_digest(
@@ -90,41 +86,18 @@ from inventory import (
 )
 
 from components import (
-    display_search,
-    display_filters,
+    display_header,
+    display_summary,
+    display_toolbar,
     display_inventory,
-    display_row_actions,
-    display_dashboard,
+    display_selection_bar,
     display_history,
     add_item_dialog,
     edit_item_dialog,
     delete_item_dialog,
-    history_dialog
+    item_history_dialog
 )
 
-
-# --------------------------------------------------
-# PAGE SETUP
-# --------------------------------------------------
-
-
-st.html(
-    """
-    <div class="oceanus-hero">
-        <div class="oceanus-kicker">
-            OCEANUS • UNDERWATER ROBOTICS
-        </div>
-
-        <div class="oceanus-title">
-            Inventory System
-        </div>
-
-        <div class="oceanus-subtitle">
-            Equipment, materials, and inventory operations
-        </div>
-    </div>
-    """
-)
 
 # --------------------------------------------------
 # SESSION STATE
@@ -139,39 +112,15 @@ if "table_version" not in st.session_state:
 
 
 # --------------------------------------------------
-# MEMBER SELECTION
+# HEADER
 # --------------------------------------------------
 
-with st.container(border=True):
-
-    st.markdown(
-    "#### Who are you?",
-    anchors=False
-    )
-
-    current_member = st.selectbox(
-        "Select your name before making inventory changes",
-        MEMBERS,
-        index=None,
-        placeholder="Select your name..."
-    )
-
-    st.caption(
-        "Your name will be recorded when you make inventory changes."
-    )
-
-
-st.session_state.current_member = current_member
-
-
-# --------------------------------------------------
-# SUCCESS MESSAGES
-# --------------------------------------------------
+current_member = display_header(MEMBERS)
 
 if st.session_state.success_message:
-
-    st.success(
-        st.session_state.success_message
+    st.toast(
+        st.session_state.success_message,
+        icon=":material/check_circle:"
     )
 
     st.session_state.success_message = None
@@ -317,107 +266,65 @@ def remove_item(item):
 
 
 # --------------------------------------------------
-# DASHBOARD
+# PAGE
 # --------------------------------------------------
 
-display_dashboard(items)
-
-
-# --------------------------------------------------
-# INVENTORY DATABASE
-# --------------------------------------------------
-
-st.html(
-    """
-    <div class="inventory-section-label">
-        INVENTORY DATABASE
-    </div>
-    """
-)
+display_summary(items)
 
 can_edit = current_member is not None
 
-search, add_clicked = display_search(can_edit)
+inventory_tab, activity_tab = st.tabs(["Inventory", "Activity"])
 
-if not can_edit:
-    st.caption(
-        "Select your name above to add, edit, or delete inventory."
+with inventory_tab:
+
+    categories, subteams, locations = get_filter_options(
+        items
     )
 
-if add_clicked:
-    add_item_dialog(save_new_item)
-
-filtered_items = search_inventory(
-    items,
-    search
-)
-
-categories, subteams, locations = get_filter_options(
-    items
-)
-
-category_filter, subteam_filter, location_filter, status_filter = (
-    display_filters(
+    search, filters, add_clicked = display_toolbar(
+        can_edit,
         categories,
         subteams,
         locations
     )
-)
 
-filtered_items = filter_inventory(
-    filtered_items,
-    category_filter,
-    subteam_filter,
-    location_filter,
-    status_filter
-)
+    category_filter, subteam_filter, location_filter, status_filter = filters
 
-selected_item = display_inventory(
-    filtered_items,
-    f"inventory_table_{st.session_state.table_version}"
-)
+    if add_clicked:
+        add_item_dialog(save_new_item)
 
-action = display_row_actions(
-    selected_item,
-    can_edit
-)
-
-if action == "edit":
-    edit_item_dialog(selected_item, save_item_changes)
-elif action == "delete":
-    delete_item_dialog(selected_item, remove_item)
-elif action == "history":
-    history_dialog(history, selected_item)
-
-
-# --------------------------------------------------
-# HISTORY
-# --------------------------------------------------
-
-col1, col2 = st.columns(
-    [4, 1],
-    vertical_alignment="bottom"
-)
-
-with col1:
-    st.html(
-        """
-        <div class="activity-section-label">
-            RECENT ACTIVITY
-        </div>
-        """
+    filtered_items = filter_inventory(
+        search_inventory(items, search),
+        category_filter,
+        subteam_filter,
+        location_filter,
+        status_filter
     )
 
-with col2:
-    if st.button(
-        "View all activity",
-        icon=":material/arrow_forward:",
-        icon_position="right",
-        type="tertiary",
-        width="stretch"
-    ):
-        history_dialog(history)
+    # The table renders after the bar, so read its selection from state.
+    table_key = f"inventory_table_{st.session_state.table_version}"
+    selection_bar = st.container()
 
-display_history(
-    history
-)
+    selected_item = display_inventory(
+        filtered_items,
+        table_key
+    )
+
+    with selection_bar:
+        action = display_selection_bar(
+            selected_item,
+            can_edit,
+            len(filtered_items),
+            len(items)
+        )
+
+    if action == "edit":
+        edit_item_dialog(selected_item, save_item_changes)
+    elif action == "delete":
+        delete_item_dialog(selected_item, remove_item)
+    elif action == "history":
+        item_history_dialog(history, selected_item)
+
+with activity_tab:
+
+    display_history(history)
