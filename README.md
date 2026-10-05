@@ -16,7 +16,7 @@ Team inventory was spread across members' dorms, homes and the club storage room
 - **Add, edit and delete in modals.** Tick a row and choose Edit, Delete or History. Every change asks who is making it.
 - **Projects.** Allocate items to the ROV build, competition, pool testing and other projects, and see what each one holds.
 - **Full activity history** with search, member, action and date filters, plus CSV export. Every add, edit and delete is kept.
-- **Admin tab** for adding and removing members, locations, categories, subteams and projects, unlocked with a leaders-only code. A value that is still in use can't be removed.
+- **Admin tab** for adding and removing members, locations, categories, subteams and projects, unlocked with a leaders-only code. Removing a value that items use leaves that field blank on those items, and the change is logged in Activity.
 - **Works on phones.** The layout adapts for checking stock at the pool or in the lab.
 
 | Edit an item | Projects |

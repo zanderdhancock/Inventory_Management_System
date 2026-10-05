@@ -95,7 +95,8 @@ from database import (
     supports_extended_fields,
     get_options,
     add_options,
-    remove_option
+    remove_option,
+    clear_item_field
 )
 
 from inventory import (
@@ -106,6 +107,7 @@ from inventory import (
     find_duplicate_item,
     validate_item,
     apply_subteams,
+    FIELD_LABELS,
     UNASSIGNED
 )
 
@@ -356,14 +358,60 @@ def add_list_value(list_name, value):
 
 
 def remove_list_value(list_name, value):
+    field = options.LIST_FIELDS.get(list_name)
+    affected = [
+        item for item in items
+        if field and item.get(field) == value
+    ]
+
+    stored = {
+        row["value"]
+        for row in option_rows or []
+        if row["list_name"] == list_name
+    }
+
     try:
-        remove_option(list_name, value)
+        if affected:
+            # Project is optional; the other fields stay text so the
+            # item is simply blank until someone picks a new value.
+            clear_item_field(
+                [item["id"] for item in affected],
+                field,
+                None if field == "project" else ""
+            )
+
+            for item in affected:
+                add_history(
+                    item["id"],
+                    item["name"],
+                    "EDIT",
+                    current_member,
+                    f"Cleared {FIELD_LABELS[field]} because {value} "
+                    "was removed from the list"
+                )
+
+        if stored:
+            remove_option(list_name, value)
+        else:
+            # A list still running on defaults is saved without the value.
+            add_options([
+                {"list_name": list_name, "value": existing, "position": position}
+                for position, existing in enumerate(
+                    v for v in options.get(list_name) if v != value
+                )
+            ])
     except Exception as error:
         print(f"Failed to remove option: {error!r}")
         st.session_state.success_message = "Unable to remove. Please try again."
         return
 
-    st.session_state.success_message = f"Removed {value}."
+    message = f"Removed {value}."
+
+    if affected:
+        count = len(affected)
+        message += f" Cleared it from {count} item{'s' if count != 1 else ''}."
+
+    finish_change(message)
 
 
 # --------------------------------------------------

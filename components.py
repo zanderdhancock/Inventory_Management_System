@@ -21,7 +21,9 @@ from inventory import (
     format_timestamp,
     filter_history,
     summarize_projects,
-    count_usage
+    count_usage,
+    FIELD_LABELS,
+    REQUIRED_FIELDS
 )
 
 
@@ -585,10 +587,21 @@ def add_item_dialog(on_save):
 
 @st.dialog("Edit item", width="medium")
 def edit_item_dialog(item, on_save):
-    if item["subsystem"] not in options.get("subteams"):
+    if item["subsystem"] and item["subsystem"] not in options.get("subteams"):
         st.info(
             f"This item is still filed under \"{item['subsystem']}\". "
             "Pick its subteam before saving."
+        )
+
+    cleared = [
+        label.lower() for field, label in REQUIRED_FIELDS.items()
+        if not item.get(field)
+    ]
+
+    if cleared:
+        st.info(
+            f"This item's {', '.join(cleared)} was cleared when it was "
+            "removed from the list. Pick a new one before saving."
         )
 
     with st.form("edit_item_form", border=False):
@@ -881,6 +894,28 @@ def display_admin_gate(configured):
     return code if submitted else None
 
 
+@st.dialog("Remove value", width="small")
+def remove_value_dialog(list_name, value, used, on_remove):
+    field_label = FIELD_LABELS[LIST_FIELDS[list_name]]
+    items_word = f"{used} item{'s' if used != 1 else ''}"
+
+    st.markdown(
+        f"**{escape(value)}** is used by {items_word}. Removing it leaves "
+        f"their {field_label} blank until someone picks a new one."
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Cancel", width="stretch"):
+            st.rerun()
+
+    with col2:
+        if st.button("Remove", type="primary", width="stretch"):
+            on_remove(list_name, value)
+            st.rerun()
+
+
 def display_admin(items, can_edit, enabled, on_add, on_remove):
     if not enabled:
         _setup_notice("Editing lists", "2026-10-05_admin_lists.sql")
@@ -912,23 +947,24 @@ def display_admin(items, can_edit, enabled, on_add, on_remove):
             st.html(f"<div class='bar-text'>{escape(value)}<span class='muted'>{usage}</span></div>")
 
         with col2:
-            if used:
-                reason = "In use, so it can't be removed"
-            elif len(values) == 1:
-                reason = "Each list needs at least one value"
-            else:
-                reason = None
+            reason = (
+                "Each list needs at least one value"
+                if len(values) == 1 else None
+            )
 
-            st.button(
+            if st.button(
                 "Remove",
                 key=f"remove_{list_name}_{value}",
                 type="tertiary",
                 disabled=not can_edit or reason is not None,
                 help=reason,
-                on_click=on_remove,
-                args=(list_name, value),
                 width="stretch"
-            )
+            ):
+                if used:
+                    remove_value_dialog(list_name, value, used, on_remove)
+                else:
+                    on_remove(list_name, value)
+                    st.rerun()
 
     with st.form(f"add_{list_name}", border=False, clear_on_submit=True):
         col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
@@ -955,8 +991,8 @@ def display_admin(items, can_edit, enabled, on_add, on_remove):
             st.rerun()
 
     st.caption(
-        "Values in use by an item can't be removed. "
-        "Rename by adding the new value, moving items to it, then removing the old one."
+        "Removing a value that items use clears it from those items. "
+        "To rename, add the new value, move items to it, then remove the old one."
     )
 
 
