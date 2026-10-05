@@ -22,15 +22,15 @@ from inventory import (
 
 # (text, background) per status, for the table and summary dots.
 STATUS_COLORS = {
-    "Available": ("#17723F", "#E6F4EC"),
-    "Low": ("#8A5A00", "#FFF3D6"),
-    "Out": ("#B42318", "#FDECEA"),
-    "In Use": ("#1A5A9E", "#E7F0FA")
+    "Available": ("#62D6A2", "rgba(98, 214, 162, 0.12)"),
+    "Low": ("#F3C55C", "rgba(243, 197, 92, 0.14)"),
+    "Out": ("#FF8A80", "rgba(255, 138, 128, 0.14)"),
+    "In Use": ("#7CC6FF", "rgba(124, 198, 255, 0.13)")
 }
 
 _LOGO = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">'
-    '<circle cx="16" cy="16" r="15" fill="#1665B0"/>'
+    '<circle cx="16" cy="16" r="15" fill="#1C7DB8"/>'
     '<path d="M5 17.5c2.2 0 2.2-2 4.4-2s2.2 2 4.4 2 2.2-2 4.4-2 2.2 2 4.4 2 2.2-2 4.4-2" '
     'stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>'
     '<path d="M8 22c1.6 0 1.6-1.4 3.2-1.4s1.6 1.4 3.2 1.4 1.6-1.4 3.2-1.4 1.6 1.4 3.2 1.4 1.6-1.4 3.2-1.4" '

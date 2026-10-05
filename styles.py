@@ -1,12 +1,60 @@
+import base64
+
 import streamlit as st
 
 
-# Colors live in .streamlit/config.toml. This file covers the branded
-# top bar, cards and summary tiles the theme can't express.
+# Layered swells behind the page heading.
+_WAVES = """
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 360" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.35" stop-color="#fff" stop-opacity="1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <mask id="m"><rect width="1440" height="360" fill="url(#fade)"/></mask>
+  </defs>
+  <g mask="url(#m)">
+    <path fill="#1C6C94" fill-opacity="0.22"
+          d="M0 150 C 180 110 360 190 540 160 S 900 100 1080 140 S 1320 190 1440 150 V360 H0Z"/>
+    <path fill="#14557A" fill-opacity="0.28"
+          d="M0 210 C 200 170 380 250 600 215 S 960 160 1160 205 S 1360 245 1440 220 V360 H0Z"/>
+    <path fill="#0B3A57" fill-opacity="0.45"
+          d="M0 270 C 220 240 420 300 640 275 S 1000 230 1220 265 S 1400 290 1440 280 V360 H0Z"/>
+  </g>
+</svg>
+"""
+
+_WAVES_URI = (
+    "data:image/svg+xml;base64,"
+    + base64.b64encode(_WAVES.encode()).decode()
+)
+
+
+# Base colors live in .streamlit/config.toml. This file adds the ocean
+# backdrop, brand bar, cards and summary tiles the theme can't express.
 def apply_styles():
     st.html(
         """
         <style>
+
+        /* Deep-water backdrop: light from the surface, swells, then dark */
+        .stApp {
+            background:
+                radial-gradient(
+                    ellipse 80% 45% at 50% -5%,
+                    rgba(110, 200, 240, 0.16),
+                    transparent 70%
+                ),
+                url("WAVES_URI") top 40px center / 100% 360px no-repeat,
+                linear-gradient(
+                    180deg,
+                    #0B3652 0%,
+                    #082A40 280px,
+                    #061C2C 620px,
+                    #04111B 100%
+                );
+            background-attachment: scroll, scroll, scroll;
+        }
 
         .block-container {
             max-width: 1180px;
@@ -19,18 +67,13 @@ def apply_styles():
             height: 3.5rem;
         }
 
-        [data-testid="stHeader"] button,
-        [data-testid="stHeader"] svg {
-            color: #FFFFFF;
-        }
 
         /* Full-width brand bar */
         .topbar {
             margin: 0 calc(50% - 50vw) 0;
-            background:
-                linear-gradient(180deg, rgba(255,255,255,0.04), transparent),
-                #0C2A47;
-            border-bottom: 1px solid #0A2239;
+            background: rgba(3, 16, 26, 0.55);
+            border-bottom: 1px solid rgba(140, 200, 235, 0.10);
+            backdrop-filter: blur(6px);
         }
 
         .topbar-inner {
@@ -56,7 +99,7 @@ def apply_styles():
         }
 
         .brand-product {
-            color: #A9C3DB;
+            color: #8FB4CC;
             font-size: 0.95rem;
         }
 
@@ -73,7 +116,7 @@ def apply_styles():
         }
 
         .page-subtitle {
-            color: #5B6B7B;
+            color: #93B3C8;
             font-size: 0.95rem;
             margin-top: 0.3rem;
         }
@@ -87,15 +130,15 @@ def apply_styles():
         }
 
         .stat {
-            background: #FFFFFF;
-            border: 1px solid #E1E6EC;
+            background: rgba(8, 30, 46, 0.72);
+            border: 1px solid rgba(120, 190, 230, 0.14);
             border-radius: 10px;
             padding: 0.85rem 1rem;
-            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+            backdrop-filter: blur(6px);
         }
 
         .stat-label {
-            color: #5B6B7B;
+            color: #8FB0C6;
             font-size: 0.8rem;
             font-weight: 500;
             display: flex;
@@ -120,17 +163,18 @@ def apply_styles():
         /* Cards that hold the table and the activity log */
         .st-key-inventory_card,
         .st-key-activity_card {
-            background: #FFFFFF;
-            border-color: #E1E6EC;
+            background: rgba(6, 25, 39, 0.82);
+            border-color: rgba(120, 190, 230, 0.14);
             border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(8px);
             padding: 1.1rem 1.2rem 1.2rem;
         }
 
         /* Bar above the table */
         .st-key-selection_bar {
-            background: #F3F7FB;
-            border-color: #D6E3F0;
+            background: rgba(47, 164, 217, 0.08);
+            border-color: rgba(47, 164, 217, 0.28);
             padding: 0.5rem 0.85rem;
             margin-bottom: 1rem;
         }
@@ -141,7 +185,7 @@ def apply_styles():
         }
 
         .row-count {
-            color: #5B6B7B;
+            color: #8FB0C6;
             font-size: 0.85rem;
             text-align: right;
         }
@@ -229,5 +273,5 @@ def apply_styles():
         }
 
         </style>
-        """
+        """.replace("WAVES_URI", _WAVES_URI)
     )
