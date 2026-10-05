@@ -66,6 +66,18 @@ def update_inventory_item(item_id, updated_data):
     return response.data
 
 
+def clear_item_field(item_ids, field, blank):
+    response = (
+        supabase
+        .table("inventory_items")
+        .update({field: blank})
+        .in_("id", item_ids)
+        .execute()
+    )
+
+    return response.data
+
+
 def delete_inventory_item(item_id):
     response = (
         supabase
