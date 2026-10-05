@@ -8,7 +8,8 @@ from inventory import (
     option_index,
     validate_item,
     filter_history,
-    format_timestamp
+    format_timestamp,
+    apply_subteams
 )
 
 
@@ -100,3 +101,13 @@ def test_filter_history_by_local_date():
 
 def test_format_timestamp_uses_central_time():
     assert format_timestamp("2026-09-29T15:42:00+00:00") == "Sep 29, 2026 10:42 AM"
+
+
+def test_apply_subteams_maps_old_subsystems():
+    items = [
+        {**ITEMS[0], "subsystem": "Propulsion"},
+        {**ITEMS[1], "subsystem": "General"}
+    ]
+    assert [i["subsystem"] for i in apply_subteams(items)] == ["F-P", "General"]
+    # The stored rows are left untouched.
+    assert items[0]["subsystem"] == "Propulsion"

@@ -20,6 +20,19 @@ SUBTEAMS = [
     "C-C"
 ]
 
+# Old subsystem names still stored on existing rows, and the subteam each
+# one now belongs to. Rows without a match keep their value until edited.
+LEGACY_SUBTEAMS = {
+    "Mechanical": "F-P",
+    "Propulsion": "F-P",
+    "Manipulator": "F-P",
+    "Waterproofing": "F-P",
+    "Electrical": "EPS",
+    "Tether": "TMS",
+    "Controls": "GNC",
+    "Cameras/Sensors": "C-C"
+}
+
 ITEM_TYPES = [
     "Asset",
     "Consumable"

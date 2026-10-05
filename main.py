@@ -86,7 +86,8 @@ from inventory import (
     get_filter_options,
     get_change_summary,
     find_duplicate_item,
-    validate_item
+    validate_item,
+    apply_subteams
 )
 
 from components import (
@@ -135,7 +136,8 @@ if st.session_state.success_message:
 # --------------------------------------------------
 
 try:
-    items = get_inventory()
+    stored_items = get_inventory()
+    items = apply_subteams(stored_items)
     history = get_history()
 except Exception as error:
     print(f"Failed to load inventory: {error!r}")
@@ -212,8 +214,14 @@ def save_item_changes(old_item, updated_data):
             f"{duplicate['location']}."
         )
 
+    stored_item = next(
+        item
+        for item in stored_items
+        if item["id"] == old_item["id"]
+    )
+
     changes = get_change_summary(
-        old_item,
+        stored_item,
         updated_data
     )
 

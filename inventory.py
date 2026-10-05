@@ -1,6 +1,8 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from options import LEGACY_SUBTEAMS
+
 
 DISPLAY_TIMEZONE = ZoneInfo("America/Chicago")
 
@@ -87,6 +89,20 @@ def get_filter_options(items):
     )
 
     return categories, subsystems, locations
+
+
+def apply_subteams(items):
+    """Show rows still carrying an old subsystem under its new subteam."""
+    return [
+        {
+            **item,
+            "subsystem": LEGACY_SUBTEAMS.get(
+                item["subsystem"],
+                item["subsystem"]
+            )
+        }
+        for item in items
+    ]
 
 
 def option_index(options, value):
