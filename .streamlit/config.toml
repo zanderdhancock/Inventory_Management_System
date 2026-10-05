@@ -1,15 +1,16 @@
 [theme]
-base = "dark"
-primaryColor = "#3D8FC4"
-backgroundColor = "#111418"
-secondaryBackgroundColor = "#1A1F25"
-textColor = "#E3E6E9"
-borderColor = "#2A3038"
+base = "light"
+primaryColor = "#1665B0"
+backgroundColor = "#F3F5F8"
+secondaryBackgroundColor = "#F6F8FA"
+textColor = "#18222D"
+borderColor = "#D9E0E7"
 showWidgetBorder = true
-baseRadius = "6px"
-buttonRadius = "6px"
-dataframeHeaderBackgroundColor = "#161A1F"
-font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap, sans-serif"
+baseRadius = "8px"
+buttonRadius = "8px"
+dataframeHeaderBackgroundColor = "#F6F8FA"
+dataframeBorderColor = "#E3E8EE"
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap, sans-serif"
 baseFontSize = 15
 
 [client]

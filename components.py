@@ -1,3 +1,4 @@
+import base64
 import csv
 import io
 
@@ -19,12 +20,31 @@ from inventory import (
 )
 
 
+# (text, background) per status, for the table and summary dots.
 STATUS_COLORS = {
-    "Available": "#5FB98A",
-    "Low": "#E0A548",
-    "Out": "#E06A5F",
-    "In Use": "#6AA7D6"
+    "Available": ("#17723F", "#E6F4EC"),
+    "Low": ("#8A5A00", "#FFF3D6"),
+    "Out": ("#B42318", "#FDECEA"),
+    "In Use": ("#1A5A9E", "#E7F0FA")
 }
+
+_LOGO = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">'
+    '<circle cx="16" cy="16" r="15" fill="#1665B0"/>'
+    '<path d="M5 17.5c2.2 0 2.2-2 4.4-2s2.2 2 4.4 2 2.2-2 4.4-2 2.2 2 4.4 2 2.2-2 4.4-2" '
+    'stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>'
+    '<path d="M8 22c1.6 0 1.6-1.4 3.2-1.4s1.6 1.4 3.2 1.4 1.6-1.4 3.2-1.4 1.6 1.4 3.2 1.4 1.6-1.4 3.2-1.4" '
+    'stroke="#8EC5F0" stroke-width="1.6" stroke-linecap="round"/>'
+    '<circle cx="16" cy="10" r="2.2" fill="#FFFFFF"/>'
+    '</svg>'
+)
+
+# st.html strips inline <svg>, so the logo goes in as an image.
+LOGO_SVG = (
+    '<img class="logo" alt="" src="data:image/svg+xml;base64,'
+    + base64.b64encode(_LOGO.encode()).decode()
+    + '">'
+)
 
 ACTION_LABELS = {
     "ADD": "Added",
@@ -44,18 +64,37 @@ FILTER_KEYS = [
 # HEADER
 # --------------------------------------------------
 
+def display_topbar():
+    st.html(
+        f"""
+        <div class="topbar">
+            <div class="topbar-inner">
+                {LOGO_SVG}
+                <span class="brand-name">Oceanus</span>
+                <span class="brand-divider"></span>
+                <span class="brand-product">Inventory</span>
+            </div>
+        </div>
+        """
+    )
+
+
 def display_header(members):
+    display_topbar()
+
     col1, col2 = st.columns(
-        [3, 2],
+        [3, 1.4],
         vertical_alignment="bottom"
     )
 
     with col1:
         st.html(
             """
-            <div class="app-header">
-                <div class="app-title">Oceanus Inventory</div>
-                <div class="app-subtitle">Texas A&amp;M underwater robotics</div>
+            <div class="page-heading">
+                <div class="page-title">Team inventory</div>
+                <div class="page-subtitle">
+                    Parts, tools and materials across Oceanus subteams
+                </div>
             </div>
             """
         )
@@ -77,23 +116,34 @@ def display_summary(items):
         if item["quantity"] is not None
     )
 
+    def count(status):
+        return sum(1 for item in items if item["status"] == status)
+
     stats = [
-        ("Items", len(items)),
-        ("Units", total_quantity),
-        ("Low stock", sum(1 for i in items if i["status"] == "Low")),
-        ("Out", sum(1 for i in items if i["status"] == "Out")),
-        ("In use", sum(1 for i in items if i["status"] == "In Use"))
+        ("Items", len(items), None),
+        ("Total units", total_quantity, None),
+        ("Low stock", count("Low"), "Low"),
+        ("Out of stock", count("Out"), "Out"),
+        ("In use", count("In Use"), "In Use")
     ]
 
-    cells = "".join(
-        f"""
-        <div class="stat">
-            <div class="stat-value">{value}</div>
-            <div class="stat-label">{label}</div>
-        </div>
+    cells = ""
+
+    for label, value, status in stats:
+        dot = ""
+
+        if status:
+            dot = (
+                f'<span class="dot" '
+                f'style="background:{STATUS_COLORS[status][0]}"></span>'
+            )
+
+        cells += f"""
+            <div class="stat">
+                <div class="stat-label">{dot}{label}</div>
+                <div class="stat-value">{value}</div>
+            </div>
         """
-        for label, value in stats
-    )
 
     st.html(f'<div class="stats">{cells}</div>')
 
@@ -197,12 +247,17 @@ def display_toolbar(can_edit, categories, subteams, locations):
 # --------------------------------------------------
 
 def _status_style(value):
-    color = STATUS_COLORS.get(value)
+    colors = STATUS_COLORS.get(value)
 
-    if not color:
+    if not colors:
         return ""
 
-    return f"color: {color}; font-weight: 500;"
+    text, background = colors
+
+    return (
+        f"color: {text}; background-color: {background}; "
+        "font-weight: 500;"
+    )
 
 
 def display_inventory(items, table_key):

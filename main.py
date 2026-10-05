@@ -3,6 +3,7 @@ import hmac
 from pathlib import Path
 from dotenv import dotenv_values
 from styles import apply_styles
+from components import LOGO_SVG, display_topbar
 
 st.set_page_config(
     page_title="Oceanus Inventory",
@@ -29,14 +30,17 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if not st.session_state.authenticated:
+    display_topbar()
+
     _, center, _ = st.columns([1, 2, 1])
 
     with center:
         st.html(
-            """
+            f"""
             <div class="access-header">
-                <div class="app-title">Oceanus Inventory</div>
-                <div class="app-subtitle">Enter the team access code to continue.</div>
+                {LOGO_SVG}
+                <div class="page-title">Oceanus Inventory</div>
+                <div class="page-subtitle">Enter the team access code to continue.</div>
             </div>
             """
         )
@@ -275,7 +279,7 @@ can_edit = current_member is not None
 
 inventory_tab, activity_tab = st.tabs(["Inventory", "Activity"])
 
-with inventory_tab:
+with inventory_tab, st.container(border=True, key="inventory_card"):
 
     categories, subteams, locations = get_filter_options(
         items
@@ -325,6 +329,6 @@ with inventory_tab:
     elif action == "history":
         item_history_dialog(history, selected_item)
 
-with activity_tab:
+with activity_tab, st.container(border=True, key="activity_card"):
 
     display_history(history)
