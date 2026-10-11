@@ -551,15 +551,18 @@ def apply_styles():
         }
 
         .logo {
-            width: 26px;
-            height: 26px;
+            width: 30px;
+            height: 30px;
             display: block;
         }
 
-        .access-header .logo {
-            width: 44px;
-            height: 44px;
+        .access-header .brand-logo {
+            width: 128px;
+            height: 128px;
             margin: 0 auto;
+            display: block;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            border-radius: 50%;
         }
 
 

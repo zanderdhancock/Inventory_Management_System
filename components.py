@@ -2,6 +2,7 @@ import base64
 from html import escape
 import csv
 import io
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -39,22 +40,14 @@ STATUS_COLORS = {
     "In Use": ("#7CC6FF", "rgba(124, 198, 255, 0.13)")
 }
 
-_LOGO = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">'
-    '<circle cx="16" cy="16" r="15" fill="#1C7DB8"/>'
-    '<path d="M5 17.5c2.2 0 2.2-2 4.4-2s2.2 2 4.4 2 2.2-2 4.4-2 2.2 2 4.4 2 2.2-2 4.4-2" '
-    'stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>'
-    '<path d="M8 22c1.6 0 1.6-1.4 3.2-1.4s1.6 1.4 3.2 1.4 1.6-1.4 3.2-1.4 1.6 1.4 3.2 1.4 1.6-1.4 3.2-1.4" '
-    'stroke="#8EC5F0" stroke-width="1.6" stroke-linecap="round"/>'
-    '<circle cx="16" cy="10" r="2.2" fill="#FFFFFF"/>'
-    '</svg>'
-)
+_LOGO_PNG = base64.b64encode(
+    (Path(__file__).parent / "assets" / "oceanus-logo.png").read_bytes()
+).decode()
 
-# st.html strips inline <svg>, so the logo goes in as an image.
-LOGO_SVG = (
-    '<img class="logo" alt="" src="data:image/svg+xml;base64,'
-    + base64.b64encode(_LOGO.encode()).decode()
-    + '">'
+LOGO_SVG = f'<img class="logo" alt="" src="data:image/png;base64,{_LOGO_PNG}">'
+
+BRAND_LOGO = (
+    f'<img class="brand-logo" alt="Oceanus" src="data:image/png;base64,{_LOGO_PNG}">'
 )
 
 ACTION_LABELS = {
@@ -323,10 +316,10 @@ def _status_style(value):
 
 
 def display_inventory(items, table_key):
-    """Show the inventory table and return the row the user selected."""
+    """Show the inventory table and return the rows the user selected."""
     if not items:
         st.info("No items match your search and filters.")
-        return None
+        return []
 
     rows = []
 
@@ -356,7 +349,7 @@ def display_inventory(items, table_key):
         hide_index=True,
         key=table_key,
         on_select="rerun",
-        selection_mode="single-row",
+        selection_mode="multi-row",
         column_config={
             "Item": st.column_config.TextColumn("Item", width="medium", pinned=True),
             "Qty": st.column_config.NumberColumn("Qty", width="small", format="%d"),
@@ -365,26 +358,23 @@ def display_inventory(items, table_key):
         }
     )
 
-    rows = event.selection.rows
-
     # A stale selection can point past the end after filters change.
-    if not rows or rows[0] >= len(items):
-        return None
-
-    return items[rows[0]]
+    return [items[row] for row in event.selection.rows if row < len(items)]
 
 
-def display_selection_bar(selected_item, can_edit, shown, total):
+def display_selection_bar(selected_items, can_edit, shown, total):
     """Sits above the table. Returns the action the user clicked, if any."""
+    single = len(selected_items) == 1
+
     with st.container(border=True, key="selection_bar"):
-        if not selected_item:
+        if not selected_items:
             col1, col2 = st.columns([3, 1], vertical_alignment="center")
 
             with col1:
                 if can_edit:
                     hint = (
                         "Tick a row's checkbox to edit, delete, "
-                        "or see its history."
+                        "or see its history. Tick several to delete them together."
                     )
                 else:
                     hint = (
@@ -408,11 +398,18 @@ def display_selection_bar(selected_item, can_edit, shown, total):
         )
 
         with col1:
-            st.html(
-                f'<div class="bar-text"><strong>{escape(selected_item["name"])}</strong>'
-                f' · {escape(selected_item["location"])}'
-                f' · qty {selected_item["quantity"]}</div>'
-            )
+            if single:
+                item = selected_items[0]
+                st.html(
+                    f'<div class="bar-text"><strong>{escape(item["name"])}</strong>'
+                    f' · {escape(item["location"])}'
+                    f' · qty {item["quantity"]}</div>'
+                )
+            else:
+                st.html(
+                    f'<div class="bar-text"><strong>{len(selected_items)} items'
+                    '</strong> selected</div>'
+                )
 
         # Render all three before returning, so none vanish while a modal is open.
         with col2, st.container(key="bar_actions"):
@@ -423,7 +420,7 @@ def display_selection_bar(selected_item, can_edit, shown, total):
                     "Edit",
                     icon=":material/edit:",
                     type="primary",
-                    disabled=not can_edit,
+                    disabled=not can_edit or not single,
                     width="stretch"
                 )
 
@@ -439,6 +436,7 @@ def display_selection_bar(selected_item, can_edit, shown, total):
                 history = st.button(
                     "History",
                     icon=":material/history:",
+                    disabled=not single,
                     width="stretch"
                 )
 
@@ -615,21 +613,29 @@ def edit_item_dialog(item, on_save):
         _finish(on_save(item, updated))
 
 
-@st.dialog("Delete item", width="small")
-def delete_item_dialog(item, on_delete):
-    st.markdown(
-        f"Delete **{item['name']}** "
-        f"({item['quantity']} at {item['location']})?"
-    )
+@st.dialog("Delete items", width="small")
+def delete_item_dialog(items, on_delete):
+    if len(items) == 1:
+        item = items[0]
+        st.markdown(
+            f"Delete **{item['name']}** "
+            f"({item['quantity']} at {item['location']})?"
+        )
+    else:
+        st.markdown(f"Delete these **{len(items)} items**?")
+        st.markdown("\n".join(
+            f"- {item['name']} ({item['quantity']} at {item['location']})"
+            for item in items
+        ))
 
     st.caption(
-        "It disappears from the inventory list. "
-        "Its history stays in the Activity tab."
+        "They disappear from the inventory list. "
+        "Their history stays in the Activity tab."
     )
 
     with st.form("delete_item_form", border=False):
         confirm = st.checkbox(
-            "Yes, delete this item"
+            "Yes, delete " + ("this item" if len(items) == 1 else "these items")
         )
         submitted, cancelled = _submit_buttons("Delete", danger=True)
 
@@ -640,7 +646,7 @@ def delete_item_dialog(item, on_delete):
         if not confirm:
             st.warning("Tick the box to confirm.")
         else:
-            _finish(on_delete(item))
+            _finish(on_delete(items))
 
 
 # --------------------------------------------------

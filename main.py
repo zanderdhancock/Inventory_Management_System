@@ -3,7 +3,7 @@ import hmac
 from pathlib import Path
 from dotenv import dotenv_values
 from styles import apply_styles
-from components import LOGO_SVG, display_topbar
+from components import BRAND_LOGO, display_topbar
 
 st.set_page_config(
     page_title="Oceanus Inventory",
@@ -52,7 +52,7 @@ if not st.session_state.authenticated:
         st.html(
             f"""
             <div class="access-header">
-                {LOGO_SVG}
+                {BRAND_LOGO}
                 <div class="page-title">Oceanus Inventory</div>
                 <div class="page-subtitle">Enter the team access code to continue.</div>
             </div>
@@ -288,26 +288,41 @@ def save_item_changes(old_item, updated_data):
     return None
 
 
-def remove_item(item):
-    try:
-        delete_inventory_item(
-            item["id"]
-        )
+def remove_items(selected):
+    deleted = 0
 
-        add_history(
-            item["id"],
-            item["name"],
-            "DELETE",
-            current_member,
-            f"Deleted {item['quantity']} from {item['location']} "
-            f"({item['category']}, {item['subsystem']})"
-        )
+    try:
+        for item in selected:
+            delete_inventory_item(
+                item["id"]
+            )
+
+            add_history(
+                item["id"],
+                item["name"],
+                "DELETE",
+                current_member,
+                f"Deleted {item['quantity']} from {item['location']} "
+                f"({item['category']}, {item['subsystem']})"
+            )
+
+            deleted += 1
     except Exception as error:
         print(f"Failed to delete item: {error!r}")
-        return "Unable to delete item. Please try again."
+
+        # Some may already be gone, so refresh the table either way.
+        if deleted:
+            st.session_state.table_version += 1
+
+        return (
+            f"Deleted {deleted} of {len(selected)} items, then hit an error. "
+            "Please try again."
+            if deleted else "Unable to delete. Please try again."
+        )
 
     finish_change(
-        f"{item['name']} deleted."
+        f"{selected[0]['name']} deleted." if len(selected) == 1
+        else f"{len(selected)} items deleted."
     )
 
     return None
@@ -466,25 +481,25 @@ with inventory_tab, st.container(border=True, key="inventory_card"):
     table_key = f"inventory_table_{st.session_state.table_version}"
     selection_bar = st.container()
 
-    selected_item = display_inventory(
+    selected_items = display_inventory(
         filtered_items,
         table_key
     )
 
     with selection_bar:
         action = display_selection_bar(
-            selected_item,
+            selected_items,
             can_edit,
             len(filtered_items),
             len(items)
         )
 
     if action == "edit":
-        edit_item_dialog(selected_item, save_item_changes)
+        edit_item_dialog(selected_items[0], save_item_changes)
     elif action == "delete":
-        delete_item_dialog(selected_item, remove_item)
+        delete_item_dialog(selected_items, remove_items)
     elif action == "history":
-        item_history_dialog(history, selected_item)
+        item_history_dialog(history, selected_items[0])
 
 with activity_tab, st.container(border=True, key="activity_card"):
 
